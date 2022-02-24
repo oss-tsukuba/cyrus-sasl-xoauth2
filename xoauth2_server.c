@@ -26,7 +26,138 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <curl/curl.h>
+#include <json/json.h>
+
 #include "xoauth2_plugin.h"
+
+#define DATA_SIZE 65536
+#define POST_DATA "client_id=%s&client_secret=%s&token=%s"
+
+struct Buffer {
+  char *data;
+  int data_size;
+};
+
+size_t buffer_writer(
+        char *ptr,
+	size_t size,
+	size_t nmemb,
+	void *stream)
+{
+  struct Buffer *buf = (struct Buffer *)stream;
+  int block = size * nmemb;
+  if (!buf) {
+    return block;
+  }
+
+  if (!buf->data) {
+    buf->data = (char *)malloc(block);
+  }
+  else {
+    buf->data = (char *)realloc(buf->data, buf->data_size + block);
+  }
+
+  if (buf->data) {
+    memcpy(buf->data + buf->data_size, ptr, block);
+    buf->data_size += block;
+  }
+
+  return block;
+}
+
+int introspect_token(
+     xoauth2_plugin_server_settings_t *settings,
+     sasl_server_params_t *params,
+     char *user,
+     char *token,
+     sasl_out_params_t *oparams)
+{
+  const sasl_utils_t *utils = params->utils;
+ 
+  CURL *curl;
+  struct curl_slist *headers = NULL;
+  char post_data[DATA_SIZE];
+  int post_ret = 0;
+  int ret = 1;
+
+  struct Buffer *buf;
+
+  buf = (struct Buffer *)malloc(sizeof(struct Buffer));
+  buf->data = NULL;
+  buf->data_size = 0;
+
+  // set data
+  sprintf(post_data, POST_DATA, settings->client_id, settings->client_secret, token);
+
+  curl = curl_easy_init();
+
+  // HEADER
+  headers = curl_slist_append(headers, "Content-Type: application/x-www-form-urlencoded");
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+  // POST
+  curl_easy_setopt(curl, CURLOPT_POST, 1);
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
+
+  // URL
+  curl_easy_setopt(curl, CURLOPT_URL, settings->introspection_url);
+
+  // callback
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, buf);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, buffer_writer);
+
+  post_ret = curl_easy_perform(curl);
+
+  SASL_log((utils->conn, SASL_LOG_NOTE, "post_ret=%d", post_ret));
+
+  curl_easy_cleanup(curl);
+
+  if (post_ret == 0) {
+    char data[DATA_SIZE];
+
+    memset(data, 0, sizeof(data));
+    strncpy(data, buf->data, buf->data_size);
+    SASL_log((utils->conn, SASL_LOG_NOTE, "data:%s", data));
+
+    json_object *result = json_tokener_parse(buf->data);
+
+    if (result == NULL) {
+      SASL_log((utils->conn, SASL_LOG_ERR, "result is NULL"));
+    } else {
+      json_object *active = NULL;
+      json_object_object_get_ex(result, "active", &active);
+
+      if (json_object_get_boolean(active)) {
+        json_object *userobj = NULL;
+        json_object_object_get_ex(result, "username", &userobj);
+        const char *username = json_object_get_string(userobj);
+	SASL_log((utils->conn, SASL_LOG_NOTE, "active:%s", username));
+
+	oparams->authid = username;
+
+	if (strcmp(user, username) == 0) {
+	  // success
+	  ret = 0;
+	  SASL_log((utils->conn, SASL_LOG_NOTE, "auth success"));
+	} else {
+	  SASL_log((utils->conn, SASL_LOG_NOTE, "user mismatch"));
+	}
+	json_object_put(userobj);
+      } else {
+	SASL_log((utils->conn, SASL_LOG_NOTE, "inactive"));
+      }
+      json_object_put(active);
+    }
+    json_object_put(result);
+  }
+
+  free(buf->data);
+  free(buf);
+
+  return ret;
+}
 
 static int xoauth2_plugin_server_mech_new(
         void *glob_context, 
@@ -323,23 +454,15 @@ static int xoauth2_plugin_server_mech_step1(
             goto out;
         }
 
-        err = params->canon_user(utils->conn, resp.authid, 0, SASL_CU_AUTHID | SASL_CU_AUTHZID, oparams);
-        if (err == SASL_OK) {
-            nprops = utils->prop_getnames(params->propctx, requests, vals);
-            if (nprops == sizeof(vals) / sizeof(*vals) && vals[0].name && vals[0].values) {
-                for (p = vals[0].values; *p; ++p) {
-                    if (strlen(*p) == resp.token_len && strncmp(*p, resp.token, resp.token_len) == 0) {
-                        token_is_valid = 1;
-                        break;
-                    }
-                }
-            } else {
-                SASL_log((utils->conn, SASL_LOG_ERR, "no bearer token found for user %s", resp.authid));
-            }
-        } else {
-            SASL_log((utils->conn, SASL_LOG_ERR, "failed to canonify user and get auxprops for user %s", resp.authid));
-        }
+	// canon_user instead
+	oparams->user = resp.authid;
+	oparams->authid = resp.authid;
 
+	err = introspect_token(context->settings, params, resp.authid, resp.token, oparams);
+
+        if (err == SASL_OK) {
+	  token_is_valid = 1;
+        }
     }
 
     if (!token_is_valid) {
@@ -385,8 +508,9 @@ static int xoauth2_plugin_server_mech_step2(
         return SASL_BADPROT;
     }
 
-    SASL_seterror((utils->conn, 0, "bearer token is not valid: %s", context->resp.token));
-    return params->transition ? SASL_TRANS: SASL_NOUSER;
+    //    SASL_seterror((utils->conn, 0, "bearer token is not valid: %s", context->resp.token));
+    //    return params->transition ? SASL_TRANS: SASL_NOUSER;
+    return SASL_FAIL;
 }
 
 static int xoauth2_plugin_server_mech_step(
@@ -438,16 +562,40 @@ static void xoauth2_plugin_server_mech_dispose(void *_context, const sasl_utils_
 static int xoauth2_server_plug_get_options(sasl_utils_t *utils, xoauth2_plugin_server_settings_t *settings)
 {
     int err;
+
     err = utils->getopt(
             utils->getopt_context,
             "XOAUTH2",
-            "xoauth2_scope",
-            &settings->scope, &settings->scope_len);
-    if (err != SASL_OK || !settings->scope) {
-        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_scope is not set"));
-        settings->scope = "";
-        settings->scope_len = 0;
+            "client_id",
+            &settings->client_id, &settings->client_id_len);
+    if (err != SASL_OK || !settings->client_id) {
+        SASL_log((utils->conn, SASL_LOG_NOTE, "client_id is not set"));
+        settings->client_id = "";
+        settings->client_id_len = 0;
     }
+
+    err = utils->getopt(
+            utils->getopt_context,
+            "XOAUTH2",
+            "client_secret",
+            &settings->client_secret, &settings->client_secret_len);
+    if (err != SASL_OK || !settings->client_secret) {
+        SASL_log((utils->conn, SASL_LOG_NOTE, "client_secret is not set"));
+        settings->client_secret = "";
+        settings->client_secret_len = 0;
+    }
+
+    err = utils->getopt(
+            utils->getopt_context,
+            "XOAUTH2",
+            "introspection_url",
+            &settings->introspection_url, &settings->introspection_url_len);
+    if (err != SASL_OK || !settings->introspection_url) {
+        SASL_log((utils->conn, SASL_LOG_NOTE, "introspection_url is not set"));
+        settings->introspection_url = "";
+        settings->introspection_url_len = 0;
+    }
+
     return SASL_OK;
 }
     
