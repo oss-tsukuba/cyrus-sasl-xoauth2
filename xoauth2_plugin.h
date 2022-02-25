@@ -46,6 +46,12 @@ typedef struct {
 typedef struct {
     const char *scope;
     unsigned scope_len;
+    const char *client_id;
+    unsigned client_id_len;
+    const char *client_secret;
+    unsigned client_secret_len;
+    const char *introspection_url;
+    unsigned introspection_url_len;
 } xoauth2_plugin_server_settings_t;
 
 typedef struct {
