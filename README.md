@@ -2,6 +2,20 @@
 
 This is a plugin implementation of [XOAUTH2](https://developers.google.com/gmail/xoauth2_protocol).
 
+## Preparing (CentOS)
+
+* install libcurl
+
+```
+sudo yum -y install libcurl-devel
+```
+* install json-c
+
+```
+sudo yum -y install json-c-devel
+```
+
+
 ## Building and installation
 
 ```
