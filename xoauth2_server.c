@@ -77,6 +77,7 @@ int introspect_token(
  
   CURL *curl;
   struct curl_slist *headers = NULL;
+  char errbuf[CURL_ERROR_SIZE];
   char post_data[DATA_SIZE];
   int post_ret = 0;
   int ret = 1;
@@ -91,6 +92,9 @@ int introspect_token(
   sprintf(post_data, POST_DATA, settings->client_id, settings->client_secret, token);
 
   curl = curl_easy_init();
+
+  // buffer to store errors
+  curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
 
   // HEADER
   headers = curl_slist_append(headers, "Content-Type: application/x-www-form-urlencoded");
@@ -110,7 +114,9 @@ int introspect_token(
 
   post_ret = curl_easy_perform(curl);
 
-  SASL_log((utils->conn, SASL_LOG_NOTE, "post_ret=%d", post_ret));
+  if (post_ret != CURLE_OK) {
+    SASL_log((utils->conn, SASL_LOG_ERR, "curl_easy_perform = %d: %s", post_ret, errbuf));
+  }
 
   curl_easy_cleanup(curl);
 
