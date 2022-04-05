@@ -89,7 +89,7 @@ int introspect_token(
   buf->data_size = 0;
 
   // set data
-  sprintf(post_data, POST_DATA, settings->client_id, settings->client_secret, token);
+  snprintf(post_data, sizeof post_data, POST_DATA, settings->client_id, settings->client_secret, token);
 
   curl = curl_easy_init();
 
