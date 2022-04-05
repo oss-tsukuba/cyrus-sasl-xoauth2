@@ -150,13 +150,11 @@ int introspect_token(
 	} else {
 	  SASL_log((utils->conn, SASL_LOG_NOTE, "user mismatch"));
 	}
-	json_object_put(userobj);
       } else {
 	SASL_log((utils->conn, SASL_LOG_NOTE, "inactive"));
       }
-      json_object_put(active);
+      json_object_put(result);
     }
-    json_object_put(result);
   }
 
   free(buf->data);
