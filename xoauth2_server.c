@@ -133,22 +133,26 @@ int introspect_token(
       SASL_log((utils->conn, SASL_LOG_ERR, "result is NULL"));
     } else {
       json_object *active = NULL;
-      json_object_object_get_ex(result, "active", &active);
 
-      if (json_object_get_boolean(active)) {
+      if (json_object_object_get_ex(result, "active", &active) &&
+	  json_object_get_boolean(active)) {
         json_object *userobj = NULL;
-        json_object_object_get_ex(result, "username", &userobj);
-        const char *username = json_object_get_string(userobj);
-	SASL_log((utils->conn, SASL_LOG_NOTE, "active:%s", username));
 
-	oparams->authid = username;
+	if (json_object_object_get_ex(result, "username", &userobj)) {
+	  const char *username = json_object_get_string(userobj);
+	  SASL_log((utils->conn, SASL_LOG_NOTE, "active:%s", username));
 
-	if (strcmp(user, username) == 0) {
-	  // success
-	  ret = 0;
-	  SASL_log((utils->conn, SASL_LOG_NOTE, "auth success"));
+	  oparams->authid = username;
+
+	  if (strcmp(user, username) == 0) {
+	    // success
+	    ret = 0;
+	    SASL_log((utils->conn, SASL_LOG_NOTE, "auth success"));
+	  } else {
+	    SASL_log((utils->conn, SASL_LOG_NOTE, "user mismatch"));
+	  }
 	} else {
-	  SASL_log((utils->conn, SASL_LOG_NOTE, "user mismatch"));
+	  SASL_log((utils->conn, SASL_LOG_NOTE, "active, but no username"));
 	}
       } else {
 	SASL_log((utils->conn, SASL_LOG_NOTE, "inactive"));
