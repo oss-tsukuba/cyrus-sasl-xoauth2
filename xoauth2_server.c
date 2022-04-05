@@ -119,6 +119,7 @@ int introspect_token(
   }
 
   curl_easy_cleanup(curl);
+  curl_slist_free_all(headers);
 
   if (post_ret == 0) {
     char data[DATA_SIZE];
