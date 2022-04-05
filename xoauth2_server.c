@@ -34,36 +34,30 @@
 #define DATA_SIZE 65536
 #define POST_DATA "client_id=%s&client_secret=%s&token=%s"
 
-struct Buffer {
-  char *data;
-  int data_size;
+struct memory {
+  char *response;
+  size_t size;
 };
 
-size_t buffer_writer(
-        char *ptr,
+size_t memory_writer(
+        char *data,
 	size_t size,
 	size_t nmemb,
 	void *stream)
 {
-  struct Buffer *buf = (struct Buffer *)stream;
-  int block = size * nmemb;
-  if (!buf) {
-    return block;
-  }
+  size_t datasize  = size * nmemb;
+  struct memory *mem = stream;
 
-  if (!buf->data) {
-    buf->data = (char *)malloc(block);
-  }
-  else {
-    buf->data = (char *)realloc(buf->data, buf->data_size + block);
-  }
+  char *ptr = realloc(mem->response, mem->size + datasize + 1);
+  if (ptr == NULL)
+    return 0; /* out of memory */
 
-  if (buf->data) {
-    memcpy(buf->data + buf->data_size, ptr, block);
-    buf->data_size += block;
-  }
+  mem->response = ptr;
+  memcpy(&mem->response[mem->size], data, datasize);
+  mem->size += datasize;
+  mem->response[mem->size] = '\0';
 
-  return block;
+  return datasize;
 }
 
 int introspect_token(
@@ -82,11 +76,9 @@ int introspect_token(
   int post_ret = 0;
   int ret = 1;
 
-  struct Buffer *buf;
-
-  buf = (struct Buffer *)malloc(sizeof(struct Buffer));
-  buf->data = NULL;
-  buf->data_size = 0;
+  struct memory buf;
+  buf.response = NULL;
+  buf.size = 0;
 
   // set data
   snprintf(post_data, sizeof post_data, POST_DATA, settings->client_id, settings->client_secret, token);
@@ -109,8 +101,8 @@ int introspect_token(
   curl_easy_setopt(curl, CURLOPT_URL, settings->introspection_url);
 
   // callback
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, buf);
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, buffer_writer);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memory_writer);
 
   post_ret = curl_easy_perform(curl);
 
@@ -122,13 +114,9 @@ int introspect_token(
   curl_slist_free_all(headers);
 
   if (post_ret == 0) {
-    char data[DATA_SIZE];
+    SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: data:%s", user, buf.response));
 
-    memset(data, 0, sizeof(data));
-    strncpy(data, buf->data, buf->data_size);
-    SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: data:%s", user, data));
-
-    json_object *result = json_tokener_parse(buf->data);
+    json_object *result = json_tokener_parse(buf.response);
 
     if (result == NULL) {
       SASL_log((utils->conn, SASL_LOG_ERR, "user %s: parsed JSON is NULL"));
@@ -161,8 +149,7 @@ int introspect_token(
     }
   }
 
-  free(buf->data);
-  free(buf);
+  free(buf.response);
 
   return ret;
 }
