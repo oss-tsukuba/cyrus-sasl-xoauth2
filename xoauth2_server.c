@@ -115,7 +115,7 @@ int introspect_token(
   post_ret = curl_easy_perform(curl);
 
   if (post_ret != CURLE_OK) {
-    SASL_log((utils->conn, SASL_LOG_ERR, "curl_easy_perform = %d: %s", post_ret, errbuf));
+    SASL_log((utils->conn, SASL_LOG_ERR, "user %s: curl_easy_perform = %d: %s", user, post_ret, errbuf));
   }
 
   curl_easy_cleanup(curl);
@@ -125,12 +125,12 @@ int introspect_token(
 
     memset(data, 0, sizeof(data));
     strncpy(data, buf->data, buf->data_size);
-    SASL_log((utils->conn, SASL_LOG_NOTE, "data:%s", data));
+    SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: data:%s", user, data));
 
     json_object *result = json_tokener_parse(buf->data);
 
     if (result == NULL) {
-      SASL_log((utils->conn, SASL_LOG_ERR, "result is NULL"));
+      SASL_log((utils->conn, SASL_LOG_ERR, "user %s: parsed JSON is NULL"));
     } else {
       json_object *active = NULL;
 
@@ -140,22 +140,21 @@ int introspect_token(
 
 	if (json_object_object_get_ex(result, "username", &userobj)) {
 	  const char *username = json_object_get_string(userobj);
-	  SASL_log((utils->conn, SASL_LOG_NOTE, "active:%s", username));
 
 	  oparams->authid = username;
 
 	  if (strcmp(user, username) == 0) {
 	    // success
 	    ret = 0;
-	    SASL_log((utils->conn, SASL_LOG_NOTE, "auth success"));
+	    SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: auth success", user));
 	  } else {
-	    SASL_log((utils->conn, SASL_LOG_NOTE, "user mismatch"));
+	    SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: JWT username %s mismatch", user, username));
 	  }
 	} else {
-	  SASL_log((utils->conn, SASL_LOG_NOTE, "active, but no username"));
+	  SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: active, but no username", user));
 	}
       } else {
-	SASL_log((utils->conn, SASL_LOG_NOTE, "inactive"));
+	SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: inactive", user));
       }
       json_object_put(result);
     }
