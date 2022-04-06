@@ -41,117 +41,117 @@ struct memory {
 
 size_t memory_writer(
         char *data,
-	size_t size,
-	size_t nmemb,
-	void *stream)
+        size_t size,
+        size_t nmemb,
+        void *stream)
 {
-  size_t datasize  = size * nmemb;
-  struct memory *mem = stream;
+    size_t datasize  = size * nmemb;
+    struct memory *mem = stream;
 
-  char *ptr = realloc(mem->response, mem->size + datasize + 1);
-  if (ptr == NULL)
-    return 0; /* out of memory */
+    char *ptr = realloc(mem->response, mem->size + datasize + 1);
+    if (ptr == NULL)
+        return 0; /* out of memory */
 
-  mem->response = ptr;
-  memcpy(&mem->response[mem->size], data, datasize);
-  mem->size += datasize;
-  mem->response[mem->size] = '\0';
+    mem->response = ptr;
+    memcpy(&mem->response[mem->size], data, datasize);
+    mem->size += datasize;
+    mem->response[mem->size] = '\0';
 
-  return datasize;
+    return datasize;
 }
 
 int introspect_token(
-     xoauth2_plugin_server_settings_t *settings,
-     sasl_server_params_t *params,
-     char *user,
-     char *token,
-     sasl_out_params_t *oparams)
+        xoauth2_plugin_server_settings_t *settings,
+        sasl_server_params_t *params,
+        char *user,
+        char *token,
+        sasl_out_params_t *oparams)
 {
-  const sasl_utils_t *utils = params->utils;
+    const sasl_utils_t *utils = params->utils;
  
-  CURL *curl;
-  struct curl_slist *headers = NULL;
-  char errbuf[CURL_ERROR_SIZE];
-  char post_data[DATA_SIZE];
-  int post_ret = 0;
-  int ret = 1;
+    CURL *curl;
+    struct curl_slist *headers = NULL;
+    char errbuf[CURL_ERROR_SIZE];
+    char post_data[DATA_SIZE];
+    int post_ret = 0;
+    int ret = 1;
 
-  struct memory buf;
-  buf.response = NULL;
-  buf.size = 0;
+    struct memory buf;
+    buf.response = NULL;
+    buf.size = 0;
 
-  // set data
-  snprintf(post_data, sizeof post_data, POST_DATA, settings->client_id, settings->client_secret, token);
+    // set data
+    snprintf(post_data, sizeof post_data, POST_DATA, settings->client_id, settings->client_secret, token);
 
-  curl = curl_easy_init();
+    curl = curl_easy_init();
 
-  // buffer to store errors
-  curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+    // buffer to store errors
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
 
-  // HEADER
-  headers = curl_slist_append(headers, "Content-Type: application/x-www-form-urlencoded");
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    // HEADER
+    headers = curl_slist_append(headers, "Content-Type: application/x-www-form-urlencoded");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-  // POST
-  curl_easy_setopt(curl, CURLOPT_POST, 1);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
+    // POST
+    curl_easy_setopt(curl, CURLOPT_POST, 1);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
 
-  // URL
-  curl_easy_setopt(curl, CURLOPT_URL, settings->introspection_url);
+    // URL
+    curl_easy_setopt(curl, CURLOPT_URL, settings->introspection_url);
 
-  // callback
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memory_writer);
+    // callback
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memory_writer);
 
-  post_ret = curl_easy_perform(curl);
+    post_ret = curl_easy_perform(curl);
 
-  if (post_ret != CURLE_OK) {
-    SASL_log((utils->conn, SASL_LOG_ERR, "user %s: curl_easy_perform = %d: %s", user, post_ret, errbuf));
-  }
-
-  curl_easy_cleanup(curl);
-  curl_slist_free_all(headers);
-
-  if (post_ret == 0) {
-    SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: data:%s", user, buf.response));
-
-    json_object *result = json_tokener_parse(buf.response);
-
-    if (result == NULL) {
-      SASL_log((utils->conn, SASL_LOG_ERR, "user %s: parsed JSON is NULL"));
-    } else {
-      json_object *active = NULL;
-
-      if (json_object_object_get_ex(result, "active", &active) &&
-	  json_object_get_boolean(active)) {
-        json_object *userobj = NULL;
-
-	if (json_object_object_get_ex(result, "username", &userobj)) {
-	  const char *username = json_object_get_string(userobj);
-
-	  oparams->authid = username;
-
-	  if (strcmp(user, username) == 0) {
-	    // success
-	    ret = 0;
-	    SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: auth success", user));
-	  } else {
-	    SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: JWT username %s mismatch", user, username));
-	  }
-	} else {
-	  SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: active, but no username", user));
-	}
-      } else {
-	SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: inactive", user));
-      }
-      json_object_put(result);
+    if (post_ret != CURLE_OK) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "user %s: curl_easy_perform = %d: %s", user, post_ret, errbuf));
     }
-  }
 
-  free(buf.response);
+    curl_easy_cleanup(curl);
+    curl_slist_free_all(headers);
 
-  return ret;
+    if (post_ret == 0) {
+        SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: data:%s", user, buf.response));
+
+        json_object *result = json_tokener_parse(buf.response);
+
+        if (result == NULL) {
+            SASL_log((utils->conn, SASL_LOG_ERR, "user %s: parsed JSON is NULL"));
+        } else {
+            json_object *active = NULL;
+
+            if (json_object_object_get_ex(result, "active", &active) &&
+                json_object_get_boolean(active)) {
+                json_object *userobj = NULL;
+
+                if (json_object_object_get_ex(result, "username", &userobj)) {
+                    const char *username = json_object_get_string(userobj);
+
+                    oparams->authid = username;
+
+                    if (strcmp(user, username) == 0) {
+                        // success
+                        ret = 0;
+                        SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: auth success", user));
+                    } else {
+                        SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: JWT username %s mismatch", user, username));
+                    }
+                } else {
+                    SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: active, but no username", user));
+                }
+            } else {
+                SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: inactive", user));
+            }
+            json_object_put(result);
+        }
+    }
+
+    free(buf.response);
+
+    return ret;
 }
 
 static int xoauth2_plugin_server_mech_new(
@@ -449,14 +449,14 @@ static int xoauth2_plugin_server_mech_step1(
             goto out;
         }
 
-	// canon_user instead
-	oparams->user = resp.authid;
-	oparams->authid = resp.authid;
+        // canon_user instead
+        oparams->user = resp.authid;
+        oparams->authid = resp.authid;
 
-	err = introspect_token(context->settings, params, resp.authid, resp.token, oparams);
+        err = introspect_token(context->settings, params, resp.authid, resp.token, oparams);
 
         if (err == SASL_OK) {
-	  token_is_valid = 1;
+            token_is_valid = 1;
         }
     }
 
