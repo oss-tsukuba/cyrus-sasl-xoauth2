@@ -27,7 +27,7 @@
 #include <string.h>
 
 #include <curl/curl.h>
-#include <json/json.h>
+#include <json-c/json.h>
 
 #include "xoauth2_plugin.h"
 
