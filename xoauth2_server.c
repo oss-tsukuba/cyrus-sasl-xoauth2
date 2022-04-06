@@ -39,7 +39,7 @@ struct memory {
   size_t size;
 };
 
-size_t memory_writer(
+static size_t memory_writer(
         char *data,
         size_t size,
         size_t nmemb,
@@ -60,7 +60,7 @@ size_t memory_writer(
     return datasize;
 }
 
-int introspect_token(
+static int introspect_token(
         xoauth2_plugin_server_settings_t *settings,
         sasl_server_params_t *params,
         char *user,
