@@ -52,6 +52,8 @@ typedef struct {
     unsigned client_secret_len;
     const char *introspection_url;
     unsigned introspection_url_len;
+    const char *proxy;
+    unsigned proxy_len;
 } xoauth2_plugin_server_settings_t;
 
 typedef struct {

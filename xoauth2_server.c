@@ -102,6 +102,8 @@ static int introspect_token(
         SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_POSTFIELDSIZE: %s", curl_easy_strerror(res)));
     } else if ((res = curl_easy_setopt(curl, CURLOPT_URL, settings->introspection_url)) != CURLE_OK) {
         SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_URL: %s", curl_easy_strerror(res)));
+    } else if (settings->proxy != NULL && (res = curl_easy_setopt(curl, CURLOPT_PROXY, settings->proxy)) != CURLE_OK) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_PROXY=%s: %s", settings->proxy, curl_easy_strerror(res)));
     } else if ((res = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf)) != CURLE_OK) {
         SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_WRITEDATA: %s", curl_easy_strerror(res)));
     } else if ((res = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memory_writer)) != CURLE_OK) {
@@ -593,6 +595,13 @@ static int xoauth2_server_plug_get_options(sasl_utils_t *utils, xoauth2_plugin_s
         settings->introspection_url = "";
         settings->introspection_url_len = 0;
     }
+
+    err = utils->getopt(
+            utils->getopt_context,
+            "XOAUTH2",
+            "proxy",
+            &settings->proxy, &settings->proxy_len);
+    /* it's ok that "proxy" is not defined */
 
     return SASL_OK;
 }
