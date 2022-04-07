@@ -73,8 +73,8 @@ static int introspect_token(
     struct curl_slist *headers = NULL;
     char errbuf[CURL_ERROR_SIZE];
     char post_data[DATA_SIZE];
-    int post_ret = 0;
-    int err = SASL_BADAUTH;
+    CURLcode res;
+    int err = SASL_FAIL;
 
     struct memory buf;
     buf.response = NULL;
@@ -83,36 +83,41 @@ static int introspect_token(
     // set data
     snprintf(post_data, sizeof post_data, POST_DATA, settings->client_id, settings->client_secret, token);
 
-    curl = curl_easy_init();
-
-    // buffer to store errors
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
-
-    // HEADER
-    headers = curl_slist_append(headers, "Content-Type: application/x-www-form-urlencoded");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-    // POST
-    curl_easy_setopt(curl, CURLOPT_POST, 1);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
-
-    // URL
-    curl_easy_setopt(curl, CURLOPT_URL, settings->introspection_url);
-
-    // callback
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memory_writer);
-
-    post_ret = curl_easy_perform(curl);
-
-    curl_easy_cleanup(curl);
-    curl_slist_free_all(headers);
-
-    if (post_ret != 0) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "user %s: curl_easy_perform = %d: %s", user, post_ret, errbuf));
+    if ((curl = curl_easy_init()) == NULL) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "curl_easy_init() failure"));
+        res = CURLE_FAILED_INIT;
+    } else if ((res = curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf)) != CURLE_OK) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_ERRORBUFFER: %s", curl_easy_strerror(res)));
+    } else if ((headers = curl_slist_append(headers, "Content-Type: application/x-www-form-urlencoded")) == NULL) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "curl_slist_append: %s", curl_easy_strerror(res)));
+        res = CURLE_OUT_OF_MEMORY;
+        err = SASL_NOMEM;
+    } else if ((res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers)) != CURLE_OK) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_HTTPHEADER: %s", curl_easy_strerror(res)));
+    } else if ((res = curl_easy_setopt(curl, CURLOPT_POST, 1)) != CURLE_OK) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_POST: %s", curl_easy_strerror(res)));
+    } else if ((res = curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data)) != CURLE_OK) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_POSTFIELDS: %s", curl_easy_strerror(res)));
+    } else if ((res = curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(post_data))) != CURLE_OK) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_POSTFIELDSIZE: %s", curl_easy_strerror(res)));
+    } else if ((res = curl_easy_setopt(curl, CURLOPT_URL, settings->introspection_url)) != CURLE_OK) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_URL: %s", curl_easy_strerror(res)));
+    } else if ((res = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf)) != CURLE_OK) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_WRITEDATA: %s", curl_easy_strerror(res)));
+    } else if ((res = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memory_writer)) != CURLE_OK) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_WRITEFUNCTION: %s", curl_easy_strerror(res)));
+    } else if ((res = curl_easy_perform(curl)) != CURLE_OK) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "user %s: curl_easy_perform: %s - %s", user, curl_easy_strerror(res), errbuf));
         err = SASL_UNAVAIL;
-    } else {
+    }
+
+    if (curl != NULL)
+        curl_easy_cleanup(curl);
+    if (headers != NULL)
+        curl_slist_free_all(headers);
+
+    if (res == CURLE_OK) {
+        err = SASL_BADAUTH;        
         SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: data:%s", user, buf.response));
 
         json_object *result = json_tokener_parse(buf.response);
