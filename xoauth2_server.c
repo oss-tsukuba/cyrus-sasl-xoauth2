@@ -74,7 +74,7 @@ static int introspect_token(
     char errbuf[CURL_ERROR_SIZE];
     char post_data[DATA_SIZE];
     int post_ret = 0;
-    int ret = 1;
+    int err = SASL_BADAUTH;
 
     struct memory buf;
     buf.response = NULL;
@@ -106,14 +106,13 @@ static int introspect_token(
 
     post_ret = curl_easy_perform(curl);
 
-    if (post_ret != CURLE_OK) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "user %s: curl_easy_perform = %d: %s", user, post_ret, errbuf));
-    }
-
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);
 
-    if (post_ret == 0) {
+    if (post_ret != 0) {
+        SASL_log((utils->conn, SASL_LOG_ERR, "user %s: curl_easy_perform = %d: %s", user, post_ret, errbuf));
+        err = SASL_UNAVAIL;
+    } else {
         SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: data:%s", user, buf.response));
 
         json_object *result = json_tokener_parse(buf.response);
@@ -133,8 +132,7 @@ static int introspect_token(
                     oparams->authid = username;
 
                     if (strcmp(user, username) == 0) {
-                        // success
-                        ret = 0;
+                        err = SASL_OK; // success
                         SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: auth success", user));
                     } else {
                         SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: JWT username %s mismatch", user, username));
@@ -151,7 +149,7 @@ static int introspect_token(
 
     free(buf.response);
 
-    return ret;
+    return err;
 }
 
 static int xoauth2_plugin_server_mech_new(
