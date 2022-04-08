@@ -454,14 +454,14 @@ static int xoauth2_plugin_server_mech_step1(
             goto out;
         }
 
-        // canon_user instead
-        oparams->user = resp.authid;
-        oparams->authid = resp.authid;
-
-        err = introspect_token(context->settings, params, resp.authid, resp.token, oparams);
-
+        err = params->canon_user(utils->conn, resp.authid, 0, SASL_CU_AUTHID | SASL_CU_AUTHZID, oparams);
         if (err == SASL_OK) {
-            token_is_valid = 1;
+            err = introspect_token(context->settings, params, resp.authid, resp.token, oparams);
+            if (err == SASL_OK) {
+                token_is_valid = 1;
+            }
+        } else {
+            SASL_log((utils->conn, SASL_LOG_ERR, "failed to canonify user and get auxprops for user %s", resp.authid));
         }
     }
 
