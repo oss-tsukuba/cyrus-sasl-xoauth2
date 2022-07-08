@@ -25,14 +25,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <curl/curl.h>
-#include <json-c/json.h>
+#include <unistd.h>
+#include <scitokens/scitokens.h>
 
 #include "xoauth2_plugin.h"
 
 #define DATA_SIZE 65536
-#define POST_DATA "client_id=%s&client_secret=%s&token=%s"
 
 struct memory {
   char *response;
@@ -68,94 +66,77 @@ static int introspect_token(
         sasl_out_params_t *oparams)
 {
     const sasl_utils_t *utils = params->utils;
- 
-    CURL *curl;
-    struct curl_slist *headers = NULL;
-    char errbuf[CURL_ERROR_SIZE];
-    char post_data[DATA_SIZE];
-    CURLcode res;
+
+    if (settings->proxy != NULL) {
+      if (setenv("http_proxy", settings->proxy, 0) != 0 ||
+	  setenv("https_proxy", settings->proxy, 0) != 0 ) {
+	SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_PROXY=%s", settings->proxy));
+      }
+    }
+
+    SciToken scitoken;
+    char *err_msg;
+    char *value;
+    char *null_ended_list[1];
     int err = SASL_FAIL;
 
-    struct memory buf;
-    buf.response = NULL;
-    buf.size = 0;
+    null_ended_list[0] = 0;
 
-    // set data
-    snprintf(post_data, sizeof post_data, POST_DATA, settings->client_id, settings->client_secret, token);
-
-    if ((curl = curl_easy_init()) == NULL) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "curl_easy_init() failure"));
-        res = CURLE_FAILED_INIT;
-    } else if ((res = curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf)) != CURLE_OK) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_ERRORBUFFER: %s", curl_easy_strerror(res)));
-    } else if ((headers = curl_slist_append(headers, "Content-Type: application/x-www-form-urlencoded")) == NULL) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "curl_slist_append: %s", curl_easy_strerror(res)));
-        res = CURLE_OUT_OF_MEMORY;
-        err = SASL_NOMEM;
-    } else if ((res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers)) != CURLE_OK) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_HTTPHEADER: %s", curl_easy_strerror(res)));
-    } else if ((res = curl_easy_setopt(curl, CURLOPT_POST, 1)) != CURLE_OK) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_POST: %s", curl_easy_strerror(res)));
-    } else if ((res = curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data)) != CURLE_OK) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_POSTFIELDS: %s", curl_easy_strerror(res)));
-    } else if ((res = curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(post_data))) != CURLE_OK) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_POSTFIELDSIZE: %s", curl_easy_strerror(res)));
-    } else if ((res = curl_easy_setopt(curl, CURLOPT_URL, settings->introspection_url)) != CURLE_OK) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_URL: %s", curl_easy_strerror(res)));
-    } else if (settings->proxy != NULL && (res = curl_easy_setopt(curl, CURLOPT_PROXY, settings->proxy)) != CURLE_OK) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_PROXY=%s: %s", settings->proxy, curl_easy_strerror(res)));
-    } else if ((res = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf)) != CURLE_OK) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_WRITEDATA: %s", curl_easy_strerror(res)));
-    } else if ((res = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memory_writer)) != CURLE_OK) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_WRITEFUNCTION: %s", curl_easy_strerror(res)));
-    } else if ((res = curl_easy_perform(curl)) != CURLE_OK) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "user %s: curl_easy_perform: %s - %s", user, curl_easy_strerror(res), errbuf));
-        err = SASL_UNAVAIL;
+    if(scitoken_deserialize(token, &scitoken, (const char * const*)null_ended_list, &err_msg)) {
+      SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
+      free(err_msg);
+      return err;
     }
 
-    if (curl != NULL)
-        curl_easy_cleanup(curl);
-    if (headers != NULL)
-        curl_slist_free_all(headers);
-
-    if (res == CURLE_OK) {
-        err = SASL_BADAUTH;        
-        SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: data:%s", user, buf.response));
-
-        json_object *result = json_tokener_parse(buf.response);
-
-        if (result == NULL) {
-            SASL_log((utils->conn, SASL_LOG_ERR, "user %s: parsed JSON is NULL"));
-        } else {
-            json_object *active = NULL;
-
-            if (json_object_object_get_ex(result, "active", &active) &&
-                json_object_get_boolean(active)) {
-                json_object *userobj = NULL;
-
-                if (json_object_object_get_ex(result, "username", &userobj)) {
-                    const char *username = json_object_get_string(userobj);
-
-                    oparams->authid = username;
-
-                    if (strcmp(user, username) == 0) {
-                        err = SASL_OK; // success
-                        SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: auth success", user));
-                    } else {
-                        SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: JWT username %s mismatch", user, username));
-                    }
-                } else {
-                    SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: active, but no username", user));
-                }
-            } else {
-                SASL_log((utils->conn, SASL_LOG_NOTE, "user %s: inactive", user));
-            }
-            json_object_put(result);
-        }
+    char* issuer_ptr = NULL;
+    if(scitoken_get_claim_string(scitoken, "iss", &issuer_ptr, &err_msg)) {
+      SASL_log((utils->conn, SASL_LOG_ERR, "Failed to get claim \n %s", err_msg));
+      free(err_msg);
+      return 0;
     }
 
-    free(buf.response);
+    //Preparing for enforcer test
+    Enforcer enf;
+    const char* aud_list[2];
 
+    aud_list[0] = "hpci";
+    aud_list[1] = NULL;
+
+    if (!(enf = enforcer_create(issuer_ptr, aud_list, &err_msg))) {
+      SASL_log((utils->conn, SASL_LOG_ERR, "Failed to create enforcer\n %s", err_msg));
+      free(err_msg);
+      return 0;
+    }
+
+    char scope[settings->scope_len + 1];
+    strncpy(scope, settings->scope, settings->scope_len);
+    scope[settings->scope_len] = 0;;
+
+    Acl acl;
+    acl.authz = "hpci";
+    acl.resource = "";
+
+    if (enforcer_test(enf, scitoken, &acl, &err_msg)) {
+      SASL_log((utils->conn, SASL_LOG_ERR, "Failed enforcer test %s %s %s %s", err_msg, acl.authz, acl.resource, aud_list[0]));
+      free(err_msg);
+      return err;
+    }
+
+    if(scitoken_get_claim_string(scitoken, "hpci.id", &value, &err_msg)) {
+      SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
+      free(err_msg);      
+      return err;
+    }
+
+    if (strcmp(value, user) != 0) {
+      SASL_log((utils->conn, SASL_LOG_ERR, "different user's token"));
+      free(err_msg);
+      return err;
+    }
+    free(value);
+    
+    err = SASL_OK;
+    
     return err;
 }
 
@@ -455,6 +436,7 @@ static int xoauth2_plugin_server_mech_step1(
         }
 
         err = params->canon_user(utils->conn, resp.authid, 0, SASL_CU_AUTHID | SASL_CU_AUTHZID, oparams);
+
         if (err == SASL_OK) {
             err = introspect_token(context->settings, params, resp.authid, resp.token, oparams);
             if (err == SASL_OK) {
@@ -566,36 +548,14 @@ static int xoauth2_server_plug_get_options(sasl_utils_t *utils, xoauth2_plugin_s
     err = utils->getopt(
             utils->getopt_context,
             "XOAUTH2",
-            "client_id",
-            &settings->client_id, &settings->client_id_len);
-    if (err != SASL_OK || !settings->client_id) {
-        SASL_log((utils->conn, SASL_LOG_NOTE, "client_id is not set"));
-        settings->client_id = "";
-        settings->client_id_len = 0;
+            "xoauth2_scope",
+            &settings->scope, &settings->scope_len);
+    if (err != SASL_OK || !settings->scope) {
+        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_scope is not set"));
+        settings->scope = "";
+        settings->scope_len = 0;
     }
-
-    err = utils->getopt(
-            utils->getopt_context,
-            "XOAUTH2",
-            "client_secret",
-            &settings->client_secret, &settings->client_secret_len);
-    if (err != SASL_OK || !settings->client_secret) {
-        SASL_log((utils->conn, SASL_LOG_NOTE, "client_secret is not set"));
-        settings->client_secret = "";
-        settings->client_secret_len = 0;
-    }
-
-    err = utils->getopt(
-            utils->getopt_context,
-            "XOAUTH2",
-            "introspection_url",
-            &settings->introspection_url, &settings->introspection_url_len);
-    if (err != SASL_OK || !settings->introspection_url) {
-        SASL_log((utils->conn, SASL_LOG_NOTE, "introspection_url is not set"));
-        settings->introspection_url = "";
-        settings->introspection_url_len = 0;
-    }
-
+    
     err = utils->getopt(
             utils->getopt_context,
             "XOAUTH2",
