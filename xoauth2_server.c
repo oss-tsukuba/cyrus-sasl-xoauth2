@@ -96,10 +96,14 @@ static int introspect_token(
     }
 
     //Preparing for enforcer test
+    char aud[settings->aud_len + 1];
+    strncpy(aud, settings->aud, settings->aud_len);
+    aud[settings->aud_len] = 0;
+    
     Enforcer enf;
     const char* aud_list[2];
 
-    aud_list[0] = "hpci";
+    aud_list[0] = aud;
     aud_list[1] = NULL;
 
     if (!(enf = enforcer_create(issuer_ptr, aud_list, &err_msg))) {
@@ -110,19 +114,24 @@ static int introspect_token(
 
     char scope[settings->scope_len + 1];
     strncpy(scope, settings->scope, settings->scope_len);
-    scope[settings->scope_len] = 0;;
+    scope[settings->scope_len] = 0;
 
     Acl acl;
-    acl.authz = "hpci";
+    acl.authz = scope;
     acl.resource = "";
 
     if (enforcer_test(enf, scitoken, &acl, &err_msg)) {
-      SASL_log((utils->conn, SASL_LOG_ERR, "Failed enforcer test %s %s %s %s", err_msg, acl.authz, acl.resource, aud_list[0]));
-      free(err_msg);
+      //SASL_log((utils->conn, SASL_LOG_ERR, "Failed enforcer test %s %s %s %s", err_msg, acl.authz, acl.resource, aud_list[0]));
+      SASL_log((utils->conn, SASL_LOG_ERR, "Failed enforcer test %s %s %s", acl.authz, acl.resource, aud_list[0]));
+      //free(err_msg);
       return err;
     }
 
-    if(scitoken_get_claim_string(scitoken, "hpci.id", &value, &err_msg)) {
+    char user_claim[settings->user_claim_len + 1];
+    strncpy(user_claim, settings->user_claim, settings->user_claim_len);
+    user_claim[settings->user_claim_len] = 0;
+    
+    if(scitoken_get_claim_string(scitoken, user_claim, &value, &err_msg)) {
       SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
       free(err_msg);      
       return err;
@@ -130,7 +139,6 @@ static int introspect_token(
 
     if (strcmp(value, user) != 0) {
       SASL_log((utils->conn, SASL_LOG_ERR, "different user's token"));
-      free(err_msg);
       return err;
     }
     free(value);
@@ -555,6 +563,28 @@ static int xoauth2_server_plug_get_options(sasl_utils_t *utils, xoauth2_plugin_s
         settings->scope = "";
         settings->scope_len = 0;
     }
+
+    err = utils->getopt(
+            utils->getopt_context,
+            "XOAUTH2",
+            "xoauth2_aud",
+            &settings->aud, &settings->aud_len);
+    if (err != SASL_OK || !settings->aud) {
+        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_aud is not set"));
+        settings->aud = "";
+        settings->aud_len = 0;
+    }
+
+    err = utils->getopt(
+            utils->getopt_context,
+            "XOAUTH2",
+            "xoauth2_user_claim",
+            &settings->user_claim, &settings->user_claim_len);
+    if (err != SASL_OK || !settings->user_claim) {
+        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_user_claim is not set"));
+        settings->user_claim = "";
+        settings->user_claim_len = 0;
+    }    
     
     err = utils->getopt(
             utils->getopt_context,
