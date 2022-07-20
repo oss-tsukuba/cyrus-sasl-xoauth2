@@ -2,19 +2,9 @@
 
 This is a plugin implementation of [XOAUTH2](https://developers.google.com/gmail/xoauth2_protocol).
 
-## Preparing (CentOS)
+## Preparing
 
-* install libcurl
-
-```
-sudo yum -y install libcurl-devel
-```
-* install json-c
-
-```
-sudo yum -y install json-c-devel
-```
-
+* install [SciTokens](https://github.com/scitokens/scitokens-cpp)
 
 ## Building and installation
 
@@ -29,10 +19,11 @@ sudo make install
 * `${sasl_plugin_dir}/{service_name}.conf`:
 
     ```
-    log_level: DEBUG
+    log_level: 7
     mech_list: xoauth2
-    client_id: xxxxx
-    client_secret: xxxxx
-    introspection_url: https://xxxxx/auth/realms/yyyy/protocol/openid-connect/token/introspect
+    xoauth2_scope: xxxx
+    xoauth2_aud: xxxx
+    xoauth2_user_claim: xxxx
+
     ```
 
