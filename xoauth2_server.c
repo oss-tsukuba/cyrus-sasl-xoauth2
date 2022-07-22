@@ -121,9 +121,8 @@ static int introspect_token(
     acl.resource = "";
 
     if (enforcer_test(enf, scitoken, &acl, &err_msg)) {
-      //SASL_log((utils->conn, SASL_LOG_ERR, "Failed enforcer test %s %s %s %s", err_msg, acl.authz, acl.resource, aud_list[0]));
-      SASL_log((utils->conn, SASL_LOG_ERR, "Failed enforcer test %s %s %s", acl.authz, acl.resource, aud_list[0]));
-      //free(err_msg);
+      SASL_log((utils->conn, SASL_LOG_ERR, "Failed enforcer test %s %s %s %s", err_msg, acl.authz, acl.resource, aud_list[0]));
+      free(err_msg);
       return err;
     }
 
