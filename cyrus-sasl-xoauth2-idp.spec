@@ -9,8 +9,8 @@ Group: Applications/Internet
 URL: http://github.com/oss-tsukuba/cyrus-sasl-xoauth2-idp/
 Source0: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
-BuildRequires: cyrus-sasl-devel, libcurl-devel, json-c-devel
-Requires: cyrus-sasl, cyrus-sasl-lib, libcurl, json-c
+BuildRequires: cyrus-sasl-devel, scitokens-cpp-devel
+Requires: cyrus-sasl, cyrus-sasl-lib, scitokens-cpp
 
 %description
 Cyrus SASL XOAUTH2 Plugin
