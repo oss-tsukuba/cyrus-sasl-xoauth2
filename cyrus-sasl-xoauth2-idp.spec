@@ -19,6 +19,7 @@ Cyrus SASL XOAUTH2 Plugin
 %setup -q
 
 %build
+./autogen.sh
 %configure
 make
 
