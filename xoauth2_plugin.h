@@ -35,7 +35,7 @@ typedef struct {
 typedef struct {
     char *buf;
     unsigned buf_size;
-    char *authid;
+    const char *authid;
     unsigned authid_len;
     char *token_type;
     unsigned token_type_len;
@@ -73,14 +73,14 @@ int xoauth2_plugin_str_append(const sasl_utils_t *utils, xoauth2_plugin_str_t *s
 void xoauth2_plugin_str_free(const sasl_utils_t *utils, xoauth2_plugin_str_t *s);
 
 int xoauth2_server_plug_init(
-        sasl_utils_t *utils,
+        const sasl_utils_t *utils,
         int maxversion,
         int *out_version,
         sasl_server_plug_t **pluglist,
         int *plugcount);
 
 int xoauth2_client_plug_init(
-        sasl_utils_t *utils,
+        const sasl_utils_t *utils,
         int maxversion,
         int *out_version,
         sasl_client_plug_t **pluglist,

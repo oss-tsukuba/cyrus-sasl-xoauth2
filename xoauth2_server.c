@@ -30,38 +30,10 @@
 
 #include "xoauth2_plugin.h"
 
-#define DATA_SIZE 65536
-
-struct memory {
-  char *response;
-  size_t size;
-};
-
-static size_t memory_writer(
-        char *data,
-        size_t size,
-        size_t nmemb,
-        void *stream)
-{
-    size_t datasize  = size * nmemb;
-    struct memory *mem = stream;
-
-    char *ptr = realloc(mem->response, mem->size + datasize + 1);
-    if (ptr == NULL)
-        return 0; /* out of memory */
-
-    mem->response = ptr;
-    memcpy(&mem->response[mem->size], data, datasize);
-    mem->size += datasize;
-    mem->response[mem->size] = '\0';
-
-    return datasize;
-}
-
 static int introspect_token(
         xoauth2_plugin_server_settings_t *settings,
         sasl_server_params_t *params,
-        char *user,
+        const char *user,
         char *token,
         sasl_out_params_t *oparams)
 {
@@ -221,9 +193,9 @@ static int append_string(const sasl_utils_t *utils, xoauth2_plugin_str_t *outbuf
     return SASL_OK; 
 }
 
+#if 0 /* not used in cyrus-sasl-xoauth2-idp */
 static int append_int(const sasl_utils_t *utils, xoauth2_plugin_str_t *outbuf, int n)
 {
-    int err;
     char buf[1024];
     int len = snprintf(buf, sizeof(buf) - 1, "%d", n);
     if (len < 0) {
@@ -231,6 +203,7 @@ static int append_int(const sasl_utils_t *utils, xoauth2_plugin_str_t *outbuf, i
     }
     return xoauth2_plugin_str_append(utils, outbuf, buf, (unsigned)len);
 }
+#endif
 
 static int build_json_response(const sasl_utils_t *utils, xoauth2_plugin_str_t *outbuf, const char *status, xoauth2_plugin_server_settings_t *settings, xoauth2_plugin_auth_response_t *resp)
 {
@@ -431,9 +404,6 @@ static int xoauth2_plugin_server_mech_step1(
 
     {
         const char *requests[] = { SASL_AUX_OAUTH2_BEARER_TOKENS, NULL };
-        struct propval vals[1];
-        const char **p;
-        int nprops;
 
         err = utils->prop_request(params->propctx, requests);
         if (err != SASL_OK) {
@@ -511,7 +481,6 @@ static int xoauth2_plugin_server_mech_step(
         unsigned *serverout_len,
         sasl_out_params_t *oparams)
 {
-    const sasl_utils_t *utils = params->utils;
     xoauth2_plugin_server_context_t *context = _context;
     switch (context->state) {
     case 0:
@@ -548,7 +517,7 @@ static void xoauth2_plugin_server_mech_dispose(void *_context, const sasl_utils_
     SASL_free(context);
 }
 
-static int xoauth2_server_plug_get_options(sasl_utils_t *utils, xoauth2_plugin_server_settings_t *settings)
+static int xoauth2_server_plug_get_options(const sasl_utils_t *utils, xoauth2_plugin_server_settings_t *settings)
 {
     int err;
 
@@ -620,7 +589,7 @@ static sasl_server_plug_t xoauth2_server_plugins[] =
 };
 
 int xoauth2_server_plug_init(
-        sasl_utils_t *utils,
+        const sasl_utils_t *utils,
         int maxversion,
         int *out_version,
         sasl_server_plug_t **pluglist,

@@ -104,14 +104,13 @@ static sasl_interact_t *find_prompt(sasl_interact_t *prompts, unsigned id)
 
 static int get_prompt_value(sasl_interact_t *prompts, unsigned id, const char **result, unsigned *result_len)
 {
-    int err;
     sasl_interact_t *prompt;
     prompt = find_prompt(prompts, id);
     if (!prompt) {
         return SASL_FAIL;
     }
 
-    *result = (const char *)prompt->result;
+    *result = prompt->result;
     *result_len = prompt->len;
 
     return SASL_OK;
@@ -137,7 +136,7 @@ static int get_cb_value(const sasl_utils_t *utils, unsigned id, const char **res
             if (secret->len >= UINT_MAX) {
                 return SASL_BADPROT;
             }
-            *result = secret->data;
+            *result = (char *)secret->data;
             *result_len = secret->len;
         }
         break;
@@ -189,13 +188,13 @@ static int xoauth2_plugin_client_mech_step1(
     }
 
     if (prompt_need && *prompt_need) {
-        if (SASL_OK == get_prompt_value(*prompt_need, SASL_CB_AUTHNAME, (const char **)&resp.authid, &resp.authid_len)) {
+        if (SASL_OK == get_prompt_value(*prompt_need, SASL_CB_AUTHNAME, &resp.authid, &resp.authid_len)) {
             authid_wanted = 0;
         }
     }
 
     if (authid_wanted) {
-        err = get_cb_value(utils, SASL_CB_AUTHNAME, (const char **)&resp.authid, &resp.authid_len);
+        err = get_cb_value(utils, SASL_CB_AUTHNAME, &resp.authid, &resp.authid_len);
         switch (err) {
         case SASL_OK:
             authid_wanted = 0;
@@ -300,8 +299,6 @@ static int xoauth2_plugin_client_mech_step2(
 {
     const sasl_utils_t *utils = params->utils;
     xoauth2_plugin_client_context_t *context = _context;
-    int err = SASL_OK;
-    xoauth2_plugin_auth_response_t resp;
 
     *clientout = NULL;
     *clientout_len = 0;
@@ -395,7 +392,7 @@ static sasl_client_plug_t xoauth2_client_plugins[] =
 };
 
 int xoauth2_client_plug_init(
-        sasl_utils_t *utils,
+        const sasl_utils_t *utils,
         int maxversion,
         int *out_version,
         sasl_client_plug_t **pluglist,
