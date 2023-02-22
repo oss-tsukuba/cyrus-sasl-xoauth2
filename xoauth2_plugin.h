@@ -26,6 +26,8 @@
 
 #define UNUSED(x) x __attribute__((unused))
 
+#define MAX_ISSUERS 64
+
 typedef struct {
     unsigned size;
     unsigned len;
@@ -52,6 +54,7 @@ typedef struct {
     unsigned user_claim_len;  
     const char *proxy;
     unsigned proxy_len;
+    const char *issuers[MAX_ISSUERS];
 } xoauth2_plugin_server_settings_t;
 
 typedef struct {

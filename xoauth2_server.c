@@ -30,6 +30,8 @@
 
 #include "xoauth2_plugin.h"
 
+#define DEMILITER " "
+
 static int introspect_token(
         xoauth2_plugin_server_settings_t *settings,
         sasl_server_params_t *params,
@@ -49,12 +51,9 @@ static int introspect_token(
     SciToken scitoken;
     char *err_msg;
     char *value;
-    char *null_ended_list[1];
     int err = SASL_FAIL;
 
-    null_ended_list[0] = 0;
-
-    if(scitoken_deserialize(token, &scitoken, (const char * const*)null_ended_list, &err_msg)) {
+    if(scitoken_deserialize(token, &scitoken, (const char * const*)settings->issuers, &err_msg)) {
       SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
       free(err_msg);
       return err;
@@ -520,6 +519,8 @@ static void xoauth2_plugin_server_mech_dispose(void *_context, const sasl_utils_
 static int xoauth2_server_plug_get_options(const sasl_utils_t *utils, xoauth2_plugin_server_settings_t *settings)
 {
     int err;
+    const char *issuers;
+    unsigned issuers_len;
 
     err = utils->getopt(
             utils->getopt_context,
@@ -552,8 +553,27 @@ static int xoauth2_server_plug_get_options(const sasl_utils_t *utils, xoauth2_pl
         SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_user_claim is not set"));
         settings->user_claim = "";
         settings->user_claim_len = 0;
-    }    
-    
+    }
+
+    memset(settings->issuers, 0, sizeof(settings->issuers));
+    err = utils->getopt(
+            utils->getopt_context,
+            "XOAUTH2",
+            "xoauth2_issuers",
+            &issuers, &issuers_len);
+    if (err != SASL_OK || !settings->user_claim) {
+        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_issuers is not set"));
+    } else {
+      char *iss;
+      int num = 0;
+
+      iss = strtok((char *)issuers, DEMILITER);
+      while (iss != NULL) {
+	settings->issuers[num++] = strdup(iss);
+	iss = strtok(NULL, DEMILITER);
+      }
+    }
+
     err = utils->getopt(
             utils->getopt_context,
             "XOAUTH2",
