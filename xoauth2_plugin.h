@@ -46,6 +46,11 @@ typedef struct {
 } xoauth2_plugin_auth_response_t;
 
 typedef struct {
+    const char *user_claim;
+    unsigned user_claim_len;
+} xoauth2_plugin_client_settings_t;
+
+typedef struct {
     const char *scope;
     unsigned scope_len;
     const char *aud;

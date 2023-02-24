@@ -18,14 +18,82 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
+/*
+ * Copyright (c) 1998-2016 Carnegie Mellon University.  All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ *
+ * 3. The name "Carnegie Mellon University" must not be used to
+ *    endorse or promote products derived from this software without
+ *    prior written permission. For permission or any other legal
+ *    details, please contact
+ *      Carnegie Mellon University
+ *      Center for Technology Transfer and Enterprise Creation
+ *      4615 Forbes Avenue
+ *      Suite 302
+ *      Pittsburgh, PA  15213
+ *      (412) 268-7393, fax: (412) 268-7395
+ *      innovation@andrew.cmu.edu
+ *
+ * 4. Redistributions of any form whatsoever must retain the following
+ *    acknowledgment:
+ *    "This product includes software developed by Computing Services
+ *     at Carnegie Mellon University (http://www.cmu.edu/computing/)."
+ *
+ * CARNEGIE MELLON UNIVERSITY DISCLAIMS ALL WARRANTIES WITH REGARD TO
+ * THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS, IN NO EVENT SHALL CARNEGIE MELLON UNIVERSITY BE LIABLE
+ * FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+ * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
+ * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <sasl/saslutil.h>
+#include <scitokens/scitokens.h>
+
 #include "xoauth2_plugin.h"
+
+#define PATHS_DELIMITER	':'
+#define HIER_DELIMITER '/'
+
+static xoauth2_plugin_client_settings_t xoauth2_client_settings;
+
+static int xoauth2_client_plug_get_options(const sasl_utils_t *utils,
+					   xoauth2_plugin_client_settings_t *settings)
+{
+    int err;
+
+    err = utils->getopt(
+            utils->getopt_context,
+            "XOAUTH2",
+            "xoauth2_user_claim",
+            &settings->user_claim, &settings->user_claim_len);
+    if (err != SASL_OK || !settings->user_claim) {
+        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_user_claim is not set"));
+        settings->user_claim = "";
+        settings->user_claim_len = 0;
+    }
+
+    return SASL_OK;
+}
 
 static int xoauth2_plugin_client_mech_new(
         UNUSED(void *glob_context),
@@ -140,6 +208,17 @@ static int get_cb_value(const sasl_utils_t *utils, unsigned id, const char **res
             *result_len = secret->len;
         }
         break;
+    case SASL_CB_GETCONFPATH:
+        {
+	  sasl_getpath_t *cb;
+            void *cb_ctx;
+            err = utils->getcallback(utils->conn, id, (sasl_callback_ft *)&cb, &cb_ctx);
+            if (err != SASL_OK) {
+                return err;
+            }
+            err = cb(NULL, result);
+        }
+        break;
     case SASL_CB_USER:
     case SASL_CB_AUTHNAME:
     case SASL_CB_LANGUAGE:
@@ -160,6 +239,75 @@ static int get_cb_value(const sasl_utils_t *utils, unsigned id, const char **res
     return err;
 }
 
+static int load_config(const sasl_utils_t *utils)
+{
+    int result;
+    const char *path_to_config = NULL;
+    unsigned path_len;
+    char *config_filename = NULL;
+    char *service_name = NULL;
+    size_t len;
+    const sasl_callback_t *getconfpath_cb = NULL;
+    const char * next;
+
+    result = sasl_getprop(utils->conn, SASL_SERVICE, (const void **)&service_name);
+    if (result != SASL_OK) goto done;
+
+    result = get_cb_value(utils, SASL_CB_GETCONFPATH, (const char **)&path_to_config, &path_len);
+    if (result != SASL_OK) goto done;
+    if (path_to_config == NULL) path_to_config = "";
+
+    next = path_to_config;
+
+    while (next != NULL) {
+        next = strchr(path_to_config, PATHS_DELIMITER);
+
+        if (next != NULL) {
+            path_len = next - path_to_config;
+            next++; /* Skip to the next path */
+        } else {
+            path_len = strlen(path_to_config);
+        }
+
+        len = path_len + 2 + strlen(service_name) + 5 + 1;
+
+        if (len > PATH_MAX ) {
+            result = SASL_FAIL;
+            goto done;
+        }
+
+        /* construct the filename for the config file */
+        config_filename = malloc((unsigned)len);
+        if (! config_filename) {
+            result = SASL_NOMEM;
+            goto done;
+        }
+
+        snprintf(config_filename, len, "%.*s%c%s.conf", (int)path_len, path_to_config,
+	        HIER_DELIMITER, service_name);
+
+        /* returns SASL_CONTINUE if the config file doesn't exist */
+        result = sasl_config_init(config_filename);
+
+        if (result != SASL_CONTINUE) {
+            /* We are done */
+            break;
+        }
+
+        if (config_filename) {
+            free(config_filename);
+            config_filename = NULL;
+        }
+
+        path_to_config = next;
+    }
+
+ done:
+    if (config_filename) free(config_filename);
+
+    return result;
+}
+
 static int xoauth2_plugin_client_mech_step1(
         void *_context,
         sasl_client_params_t *params,
@@ -176,6 +324,7 @@ static int xoauth2_plugin_client_mech_step1(
     xoauth2_plugin_auth_response_t resp;
     int authid_wanted = 1;
     int password_wanted = 1;
+    int get_from_jwt = 0;
     sasl_interact_t *prompt_returned = NULL;
 
     *clientout = NULL;
@@ -194,16 +343,22 @@ static int xoauth2_plugin_client_mech_step1(
     }
 
     if (authid_wanted) {
-        err = get_cb_value(utils, SASL_CB_AUTHNAME, &resp.authid, &resp.authid_len);
-        switch (err) {
-        case SASL_OK:
+        err = get_cb_value(utils, SASL_CB_AUTHNAME, (const char **)&resp.authid, &resp.authid_len);
+
+	if (err == SASL_FAIL) {
+	  authid_wanted = 0;
+	  get_from_jwt = 1;
+	} else {
+	  switch (err) {
+	  case SASL_OK:
             authid_wanted = 0;
             break;
-        case SASL_INTERACT:
+	  case SASL_INTERACT:
             break;
-        default:
+	  default:
             goto out;
-        }
+	  }
+	}
     }
 
     if (prompt_need && *prompt_need) {
@@ -226,6 +381,42 @@ static int xoauth2_plugin_client_mech_step1(
     }
 
     if (!authid_wanted && !password_wanted) {
+
+        xoauth2_plugin_client_settings_t *settings = &xoauth2_client_settings;
+        err = load_config(utils);
+        if (err != SASL_OK) {
+          goto out;
+        }
+
+	err = xoauth2_client_plug_get_options(utils, settings);
+        if (err != SASL_OK) {
+          goto out;
+        }
+
+        if (get_from_jwt) {
+	  SciToken scitoken;
+	  char *username;
+	  char user_claim[settings->user_claim_len + 1];
+	  char *nulllist[1];
+	  char *err_msg;
+
+	  strncpy(user_claim, settings->user_claim, settings->user_claim_len);
+	  user_claim[settings->user_claim_len] = 0;
+
+	  nulllist[0] = 0;
+	  if(scitoken_deserialize(resp.token, &scitoken, (const char * const*)nulllist, &err_msg)) {
+	    SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
+	    free(err_msg);
+	  } else {
+	    if(scitoken_get_claim_string(scitoken, user_claim, &username, &err_msg)) {
+	      SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
+	      free(err_msg);
+	    }
+	    resp.authid = username;
+	    resp.authid_len = strlen(username);
+	  }
+        }
+
         err = params->canon_user(
                 utils->conn, resp.authid, resp.authid_len,
                 SASL_CU_AUTHID | SASL_CU_AUTHZID, oparams);
@@ -409,4 +600,3 @@ int xoauth2_client_plug_init(
 
     return SASL_OK;
 }
-
