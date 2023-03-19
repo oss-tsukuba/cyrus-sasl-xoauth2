@@ -59,10 +59,11 @@ static int introspect_token(
       return err;
     }
 
-    char* issuer_ptr = NULL;
+    char *issuer_ptr = NULL;
     if(scitoken_get_claim_string(scitoken, "iss", &issuer_ptr, &err_msg)) {
       SASL_log((utils->conn, SASL_LOG_ERR, "Failed to get claim \n %s", err_msg));
       free(err_msg);
+      scitoken_destroy(scitoken);
       return 0;
     }
 
@@ -80,6 +81,8 @@ static int introspect_token(
     if (!(enf = enforcer_create(issuer_ptr, aud_list, &err_msg))) {
       SASL_log((utils->conn, SASL_LOG_ERR, "Failed to create enforcer\n %s", err_msg));
       free(err_msg);
+      scitoken_destroy(scitoken);
+      free(issuer_ptr);
       return 0;
     }
 
@@ -94,8 +97,11 @@ static int introspect_token(
     if (enforcer_test(enf, scitoken, &acl, &err_msg)) {
       SASL_log((utils->conn, SASL_LOG_ERR, "Failed enforcer test %s %s %s %s", err_msg, acl.authz, acl.resource, aud_list[0]));
       free(err_msg);
+      scitoken_destroy(scitoken);
+      free(issuer_ptr);
       return err;
     }
+    free(issuer_ptr);
 
     char user_claim[settings->user_claim_len + 1];
     strncpy(user_claim, settings->user_claim, settings->user_claim_len);
@@ -103,18 +109,22 @@ static int introspect_token(
     
     if(scitoken_get_claim_string(scitoken, user_claim, &value, &err_msg)) {
       SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
-      free(err_msg);      
+      free(err_msg);
+      scitoken_destroy(scitoken);
       return err;
     }
 
     if (strcmp(value, user) != 0) {
       SASL_log((utils->conn, SASL_LOG_ERR, "different user's token"));
+      scitoken_destroy(scitoken);
+      free(value);
       return err;
     }
     free(value);
     
     err = SASL_OK;
-    
+
+    scitoken_destroy(scitoken);
     return err;
 }
 
@@ -512,6 +522,7 @@ static void xoauth2_plugin_server_mech_dispose(void *_context, const sasl_utils_
         SASL_free(context->resp.buf);
         context->resp.buf = NULL;
     }
+
     xoauth2_plugin_str_free(utils, &context->outbuf);
     SASL_free(context);
 }

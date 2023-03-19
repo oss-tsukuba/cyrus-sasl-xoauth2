@@ -62,6 +62,7 @@
 #include <config.h>
 #endif
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,6 +76,8 @@
 #define HIER_DELIMITER '/'
 
 static xoauth2_plugin_client_settings_t xoauth2_client_settings;
+
+static pthread_once_t load_config_initialized = PTHREAD_ONCE_INIT;
 
 static int xoauth2_client_plug_get_options(const sasl_utils_t *utils,
 					   xoauth2_plugin_client_settings_t *settings)
@@ -239,6 +242,7 @@ static int get_cb_value(const sasl_utils_t *utils, unsigned id, const char **res
     return err;
 }
 
+
 static int load_config(const sasl_utils_t *utils)
 {
     int result;
@@ -308,6 +312,13 @@ static int load_config(const sasl_utils_t *utils)
     return result;
 }
 
+static const sasl_utils_t *load_config_utils;
+static int load_config_result = 0;
+
+static void load_config_once() {
+    load_config_result = load_config(load_config_utils);
+}
+
 static int xoauth2_plugin_client_mech_step1(
         void *_context,
         sasl_client_params_t *params,
@@ -326,6 +337,7 @@ static int xoauth2_plugin_client_mech_step1(
     int password_wanted = 1;
     int get_from_jwt = 0;
     sasl_interact_t *prompt_returned = NULL;
+    char *username = NULL;
 
     *clientout = NULL;
     *clientout_len = 0;
@@ -383,7 +395,10 @@ static int xoauth2_plugin_client_mech_step1(
     if (!authid_wanted && !password_wanted) {
 
         xoauth2_plugin_client_settings_t *settings = &xoauth2_client_settings;
-        err = load_config(utils);
+
+	load_config_utils = utils;
+	pthread_once(&load_config_initialized, load_config_once);
+	err = load_config_result;
         if (err != SASL_OK) {
           goto out;
         }
@@ -395,7 +410,6 @@ static int xoauth2_plugin_client_mech_step1(
 
         if (get_from_jwt) {
 	  SciToken scitoken;
-	  char *username;
 	  char user_claim[settings->user_claim_len + 1];
 	  char *nulllist[1];
 	  char *err_msg;
@@ -415,6 +429,7 @@ static int xoauth2_plugin_client_mech_step1(
 	    resp.authid = username;
 	    resp.authid_len = strlen(username);
 	  }
+	  scitoken_destroy(scitoken);
         }
 
         err = params->canon_user(
@@ -475,6 +490,7 @@ out:
             *prompt_need = prompt_returned;
         }
     }
+    free(username);
     return err;
 }
 
@@ -553,6 +569,9 @@ static void xoauth2_plugin_client_mech_dispose(
 {
     xoauth2_plugin_client_context_t *context = _context;
 
+    sasl_config_done();
+    load_config_initialized = PTHREAD_ONCE_INIT;
+
     if (!context) {
         return;
     }
@@ -597,6 +616,7 @@ int xoauth2_client_plug_init(
     *out_version = SASL_CLIENT_PLUG_VERSION;
     *pluglist = xoauth2_client_plugins;
     *plugcount = sizeof(xoauth2_client_plugins) / sizeof(*xoauth2_client_plugins);
+    load_config_initialized = PTHREAD_ONCE_INIT;
 
     return SASL_OK;
 }
