@@ -425,9 +425,10 @@ static int xoauth2_plugin_client_mech_step1(
 	    if(scitoken_get_claim_string(scitoken, user_claim, &username, &err_msg)) {
 	      SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
 	      free(err_msg);
+	    } else {
+	      resp.authid = username;
+	      resp.authid_len = strlen(username);
 	    }
-	    resp.authid = username;
-	    resp.authid_len = strlen(username);
 	    scitoken_destroy(scitoken);
 	  }
         }
