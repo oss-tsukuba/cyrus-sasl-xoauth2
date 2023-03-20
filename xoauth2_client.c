@@ -428,8 +428,8 @@ static int xoauth2_plugin_client_mech_step1(
 	    }
 	    resp.authid = username;
 	    resp.authid_len = strlen(username);
+	    scitoken_destroy(scitoken);
 	  }
-	  scitoken_destroy(scitoken);
         }
 
         err = params->canon_user(
