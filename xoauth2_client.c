@@ -72,12 +72,68 @@
 
 #include "xoauth2_plugin.h"
 
+#include "base64.h"
+#include "cJSON.h"
+
 #define PATHS_DELIMITER	':'
 #define HIER_DELIMITER '/'
 
 static xoauth2_plugin_client_settings_t xoauth2_client_settings;
 
 static pthread_once_t load_config_initialized = PTHREAD_ONCE_INIT;
+
+static int jwt_get_claim_string(const char *token,
+				const char *claim,
+				char **dst) {
+    char *payload;
+    int len, dlen;
+    int first, second, i;
+    int ret = 0;
+    cJSON *root, *item;
+
+    if (token == NULL || claim == NULL) {
+      return 0;
+    }
+
+    for (first = 0, second = 0, i = 0; i < strlen(token); i++) {
+        if (token[i] == '.') {
+	  if (first == 0) {
+	        first = i + 1;
+	    } else {
+	      second = i;
+	    }
+	}
+    }
+
+    if (second - first <= 0) {
+      return -1;
+    }
+
+    len = second - first;
+    len += len % 4;
+    dlen = b64d_size(len);
+    payload = malloc((dlen + 1) * sizeof(char));
+    memset(payload, 0, dlen + 1);
+
+    len = b64_decode(token + first, len, payload);
+    if (len <= 0){
+      free(payload);
+      return -1;
+    }
+
+    root = cJSON_Parse(payload);
+    item = cJSON_GetObjectItem(root, claim);
+
+    if (item != NULL) {
+      *dst = strdup(cJSON_GetStringValue(item));
+      ret = strlen(*dst);
+    }
+
+    free(payload);
+    cJSON_Delete(root);
+
+    return ret;
+}
 
 static int xoauth2_client_plug_get_options(const sasl_utils_t *utils,
 					   xoauth2_plugin_client_settings_t *settings)
@@ -417,19 +473,11 @@ static int xoauth2_plugin_client_mech_step1(
 	  strncpy(user_claim, settings->user_claim, settings->user_claim_len);
 	  user_claim[settings->user_claim_len] = 0;
 
-	  nulllist[0] = 0;
-	  if(scitoken_deserialize(resp.token, &scitoken, (const char * const*)nulllist, &err_msg)) {
-	    SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
-	    free(err_msg);
+	  if (jwt_get_claim_string(resp.token, user_claim, &username) > 0) {
+	    resp.authid = username;
+	    resp.authid_len = strlen(username);
 	  } else {
-	    if(scitoken_get_claim_string(scitoken, user_claim, &username, &err_msg)) {
-	      SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
-	      free(err_msg);
-	    } else {
-	      resp.authid = username;
-	      resp.authid_len = strlen(username);
-	    }
-	    scitoken_destroy(scitoken);
+	    SASL_log((utils->conn, SASL_LOG_ERR, "get claim failed"));
 	  }
         }
 
