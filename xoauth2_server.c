@@ -44,7 +44,7 @@ static int introspect_token(
     if (settings->proxy != NULL) {
       if (setenv("http_proxy", settings->proxy, 0) != 0 ||
 	  setenv("https_proxy", settings->proxy, 0) != 0 ) {
-	SASL_log((utils->conn, SASL_LOG_ERR, "CURLOPT_PROXY=%s", settings->proxy));
+	SASL_log((utils->conn, SASL_LOG_ERR, "xoauht2_plugin, CURLOPT_PROXY=%s", settings->proxy));
       }
     }
 
@@ -54,14 +54,14 @@ static int introspect_token(
     int err = SASL_FAIL;
 
     if(scitoken_deserialize(token, &scitoken, (const char * const*)settings->issuers, &err_msg)) {
-      SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
+      SASL_log((utils->conn, SASL_LOG_ERR, "xoauht2_plugin, introspect_token \n %s", err_msg));
       free(err_msg);
       return err;
     }
 
     char *issuer_ptr = NULL;
     if(scitoken_get_claim_string(scitoken, "iss", &issuer_ptr, &err_msg)) {
-      SASL_log((utils->conn, SASL_LOG_ERR, "Failed to get claim \n %s", err_msg));
+      SASL_log((utils->conn, SASL_LOG_ERR, "xoauht2_plugin, introspect_token, Failed to get issuer claim \n %s", err_msg));
       free(err_msg);
       scitoken_destroy(scitoken);
       return 0;
@@ -79,7 +79,8 @@ static int introspect_token(
     aud_list[1] = NULL;
 
     if (!(enf = enforcer_create(issuer_ptr, aud_list, &err_msg))) {
-      SASL_log((utils->conn, SASL_LOG_ERR, "Failed to create enforcer\n %s", err_msg));
+      SASL_log((utils->conn, SASL_LOG_ERR, "xoauht2_plugin, introspect_token, Failed to create enforcer: %s", aud));
+      SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
       free(err_msg);
       scitoken_destroy(scitoken);
       free(issuer_ptr);
@@ -95,7 +96,8 @@ static int introspect_token(
     acl.resource = "";
 
     if (enforcer_test(enf, scitoken, &acl, &err_msg)) {
-      SASL_log((utils->conn, SASL_LOG_ERR, "Failed enforcer test %s %s %s %s", err_msg, acl.authz, acl.resource, aud_list[0]));
+      SASL_log((utils->conn, SASL_LOG_ERR, "xoauht2_plugin, introspect_token, Failed enforcer test %s", acl.authz));
+      SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));      
       free(err_msg);
       scitoken_destroy(scitoken);
       free(issuer_ptr);
@@ -108,14 +110,14 @@ static int introspect_token(
     user_claim[settings->user_claim_len] = 0;
     
     if(scitoken_get_claim_string(scitoken, user_claim, &value, &err_msg)) {
-      SASL_log((utils->conn, SASL_LOG_ERR, "%s", err_msg));
+      SASL_log((utils->conn, SASL_LOG_ERR, "xoauht2_plugin, introspect_token, Failed to get user claim %s", err_msg));
       free(err_msg);
       scitoken_destroy(scitoken);
       return err;
     }
 
     if (strcmp(value, user) != 0) {
-      SASL_log((utils->conn, SASL_LOG_ERR, "different user's token"));
+      SASL_log((utils->conn, SASL_LOG_ERR, "xoauht2_plugin, introspect_token, different user's token"));
       scitoken_destroy(scitoken);
       free(value);
       return err;
@@ -151,7 +153,7 @@ static int xoauth2_plugin_server_mech_new(
     err = xoauth2_plugin_str_init(utils, &context->outbuf);
     if (err != SASL_OK) {
         SASL_free(context);
-        SASL_log((utils->conn, SASL_LOG_ERR, "failed to allocate buffer"));
+        SASL_log((utils->conn, SASL_LOG_ERR, "xoauht2_plugin, failed to allocate buffer"));
         return err;
     }
     *pcontext = context;
@@ -290,7 +292,7 @@ static int xoauth2_plugin_server_mech_step1(
     *serverout = NULL;
     *serverout_len = 0;
 
-    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauth2: step1"));
+    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauht2_plugin, xoauth2: step1"));
     
     if (!context) {
         err = SASL_BADPROT;
@@ -429,14 +431,14 @@ static int xoauth2_plugin_server_mech_step1(
                 token_is_valid = 1;
             }
         } else {
-            SASL_log((utils->conn, SASL_LOG_ERR, "failed to canonify user and get auxprops for user %s", resp.authid));
+            SASL_log((utils->conn, SASL_LOG_ERR, "xoauht2_plugin, failed to canonify user and get auxprops for user %s", resp.authid));
         }
     }
 
     if (!token_is_valid) {
         err = build_json_response(utils, &context->outbuf, "401", context->settings, &resp);
         if (err != SASL_OK) {
-            SASL_log((utils->conn, SASL_LOG_ERR, "failed to allocate buffer"));
+            SASL_log((utils->conn, SASL_LOG_ERR, "xoauht2_plugin, failed to allocate buffer"));
             goto out;
         }
         context->state = 1;
@@ -470,7 +472,7 @@ static int xoauth2_plugin_server_mech_step2(
     *serverout = NULL;
     *serverout_len = 0;
 
-    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauth2: step2"));
+    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauht2_plugin, xoauth2: step2"));
     
     if (!context) {
         return SASL_BADPROT;
@@ -539,7 +541,7 @@ static int xoauth2_server_plug_get_options(const sasl_utils_t *utils, xoauth2_pl
             "xoauth2_scope",
             &settings->scope, &settings->scope_len);
     if (err != SASL_OK || !settings->scope) {
-        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_scope is not set"));
+        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauht2_plugin, xoauth2_scope is not set"));
         settings->scope = "";
         settings->scope_len = 0;
     }
@@ -550,7 +552,7 @@ static int xoauth2_server_plug_get_options(const sasl_utils_t *utils, xoauth2_pl
             "xoauth2_aud",
             &settings->aud, &settings->aud_len);
     if (err != SASL_OK || !settings->aud) {
-        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_aud is not set"));
+        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauht2_plugin, xoauth2_aud is not set"));
         settings->aud = "";
         settings->aud_len = 0;
     }
@@ -561,7 +563,7 @@ static int xoauth2_server_plug_get_options(const sasl_utils_t *utils, xoauth2_pl
             "xoauth2_user_claim",
             &settings->user_claim, &settings->user_claim_len);
     if (err != SASL_OK || !settings->user_claim) {
-        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_user_claim is not set"));
+        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauht2_plugin, xoauth2_user_claim is not set"));
         settings->user_claim = "";
         settings->user_claim_len = 0;
     }
@@ -573,7 +575,7 @@ static int xoauth2_server_plug_get_options(const sasl_utils_t *utils, xoauth2_pl
             "xoauth2_issuers",
             &issuers, &issuers_len);
     if (err != SASL_OK || !settings->user_claim) {
-        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_issuers is not set"));
+        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauht2_plugin, xoauth2_issuers is not set"));
     } else {
       char *iss;
       int num = 0;

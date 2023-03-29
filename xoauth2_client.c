@@ -146,7 +146,7 @@ static int xoauth2_client_plug_get_options(const sasl_utils_t *utils,
             "xoauth2_user_claim",
             &settings->user_claim, &settings->user_claim_len);
     if (err != SASL_OK || !settings->user_claim) {
-        SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_user_claim is not set"));
+        SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, xoauth2_user_claim is not set"));
         settings->user_claim = "";
         settings->user_claim_len = 0;
     }
@@ -165,7 +165,7 @@ static int xoauth2_plugin_client_mech_new(
 
     context = SASL_malloc(sizeof(*context));
     if (!context) {
-        SASL_seterror((utils->conn, 0, "Failed to allocate memory"));
+        SASL_seterror((utils->conn, 0, "xoauth2_plugin, Failed to allocate memory"));
         return SASL_NOMEM;
     }
 
@@ -398,7 +398,7 @@ static int xoauth2_plugin_client_mech_step1(
     *clientout = NULL;
     *clientout_len = 0;
 
-    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauth2: step1"));
+    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauth2_plugin, xoauth2: step1"));
 
     if (!context) {
         return SASL_BADPROT;
@@ -477,7 +477,7 @@ static int xoauth2_plugin_client_mech_step1(
 	    resp.authid = username;
 	    resp.authid_len = strlen(username);
 	  } else {
-	    SASL_log((utils->conn, SASL_LOG_ERR, "get claim failed"));
+	    SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, get claim failed:%s", user_claim));
 	  }
         }
 
@@ -502,7 +502,7 @@ static int xoauth2_plugin_client_mech_step1(
         sasl_interact_t *p;
         prompt_returned = SASL_malloc(sizeof(sasl_interact_t) * prompts);
         if (!prompt_returned) {
-            SASL_log((utils->conn, SASL_LOG_ERR, "failed to allocate buffer"));
+            SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, failed to allocate buffer"));
             err = SASL_NOMEM;
             goto out;
         }
@@ -559,7 +559,7 @@ static int xoauth2_plugin_client_mech_step2(
     *clientout = NULL;
     *clientout_len = 0;
 
-    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauth2: step2"));
+    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauth2_plugin, xoauth2: step2"));
 
     if (!context) {
         return SASL_BADPROT;
@@ -661,7 +661,6 @@ int xoauth2_client_plug_init(
         SASL_seterror((utils->conn, 0, "xoauth2: version mismatch"));
         return SASL_BADVERS;
     }
-
     *out_version = SASL_CLIENT_PLUG_VERSION;
     *pluglist = xoauth2_client_plugins;
     *plugcount = sizeof(xoauth2_client_plugins) / sizeof(*xoauth2_client_plugins);

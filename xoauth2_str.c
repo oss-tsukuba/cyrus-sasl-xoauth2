@@ -47,7 +47,7 @@ int xoauth2_plugin_str_alloc(const sasl_utils_t *utils, xoauth2_plugin_str_t *s,
         while (new_size < req_len) {
             unsigned _new_size = new_size + (new_size >> 1);
             if (_new_size < new_size) {
-                SASL_log((utils->conn, SASL_LOG_ERR, "failed to allocate %u bytes", req_len));
+                SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, failed to allocate %u bytes", req_len));
                 return SASL_NOMEM;
             }
             new_size = _new_size;
