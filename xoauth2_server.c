@@ -104,6 +104,7 @@ static int introspect_token(
       return err;
     }
     free(issuer_ptr);
+    enforcer_destroy(enf);
 
     char user_claim[settings->user_claim_len + 1];
     strncpy(user_claim, settings->user_claim, settings->user_claim_len);
