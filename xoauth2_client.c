@@ -68,7 +68,6 @@
 #include <string.h>
 #include <limits.h>
 #include <sasl/saslutil.h>
-#include <scitokens/scitokens.h>
 
 #include "xoauth2_plugin.h"
 
@@ -115,7 +114,8 @@ static int jwt_get_claim_string(const char *token,
     payload = malloc((dlen + 1) * sizeof(char));
     memset(payload, 0, dlen + 1);
 
-    len = b64_decode(token + first, len, payload);
+    len = b64_decode((const unsigned char *)token + first, len,
+		    (unsigned char *)payload);
     if (len <= 0){
       free(payload);
       return -1;
@@ -307,7 +307,6 @@ static int load_config(const sasl_utils_t *utils)
     char *config_filename = NULL;
     char *service_name = NULL;
     size_t len;
-    const sasl_callback_t *getconfpath_cb = NULL;
     const char * next;
 
     result = sasl_getprop(utils->conn, SASL_SERVICE, (const void **)&service_name);
@@ -465,10 +464,7 @@ static int xoauth2_plugin_client_mech_step1(
         }
 
         if (get_from_jwt) {
-	  SciToken scitoken;
 	  char user_claim[settings->user_claim_len + 1];
-	  char *nulllist[1];
-	  char *err_msg;
 
 	  strncpy(user_claim, settings->user_claim, settings->user_claim_len);
 	  user_claim[settings->user_claim_len] = 0;
