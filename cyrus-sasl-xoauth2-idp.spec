@@ -32,9 +32,9 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root,-)
-%{_plugindir2}//libxoauth2.a
-%{_plugindir2}//libxoauth2.la
-%{_plugindir2}//libxoauth2.so*
+%{_plugindir2}/libxoauth2.a
+%{_plugindir2}/libxoauth2.la
+%{_plugindir2}/libxoauth2.so*
 
 %changelog
 * Fri Apr  8 2022 SODA Noriyuki <soda@sra.co.jp> 0.2-1
