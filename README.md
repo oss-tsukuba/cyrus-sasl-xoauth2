@@ -10,7 +10,7 @@ This is a plugin implementation of [XOAUTH2](https://developers.google.com/gmail
 
 ```
 ./autogen.sh
-./configure
+./configure --libdir=$(pkg-config --variable=libdir libsasl2)
 sudo make install
 ```
 
