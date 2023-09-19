@@ -38,7 +38,6 @@ sudo make install
 * `${sasl_plugin_dir}/{service_name}.conf`:
 
     ```
-    log_level: 7
     mech_list: xoauth2
     xoauth2_scope: xxxx
     xoauth2_aud: xxxx
