@@ -35,6 +35,8 @@ sudo make install
 
 ## Server-side configuration
 
+sasl_plugin_dir=$(pkg-config --variable=libdir libsasl2)/sasl2
+
 * `${sasl_plugin_dir}/{service_name}.conf`:
 
     ```
