@@ -1,0 +1,7 @@
+Release note for Cyrus SASL XOAUTH2 IdP 1.0.0
+=============================================
+
+[2023.11.27]
+
+This is a plugin of XOAUTH2 for Cyrus SASL. The JWT is verified by the
+issuer's public key.
