@@ -1,16 +1,14 @@
 # cyrus-sasl-xoauth2-idp
 
-This is a plugin of [XOAUTH2](https://developers.google.com/gmail/xoauth2_protocol) for Cyrus SASL.  The JWT is verified by the issuer's public key.
+This is a plugin of [XOAUTH2](https://developers.google.com/gmail/xoauth2_protocol) mechanism for Cyrus SASL, extending [cyrus-sasl-xoauth2](https://github.com/moriyoshi/cyrus-sasl-xoauth2) to have the following features;
 
-This modified [cyrus-sasl-xoauth2](https://github.com/moriyoshi/cyrus-sasl-xoauth2) in the followings.
+* Server side
 
-* server side
-  
-  The JWT is verified using [SciTokens](https://github.com/scitokens/scitokens-cpp).
+  JWT is verified by the issuer's public key using [SciTokens](https://github.com/scitokens/scitokens-cpp)
 
-* client side
+* Client side
 
-   The username is taken from the JWT's user claim instead of the input. 
+  The username is taken from the JWT's user claim instead of the input.
   
 ## Required packages
 * [Cyrus SASL](https://github.com/cyrusimap/cyrus-sasl)
