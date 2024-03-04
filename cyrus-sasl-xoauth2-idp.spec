@@ -2,7 +2,7 @@
 
 Summary: Cyrus SASL XOAUTH2 Plugin
 Name: cyrus-sasl-xoauth2-idp
-Version: 1.0.0
+Version: 1.0.1
 Release: 1%{?dist}
 License: BSD
 Group: Applications/Internet

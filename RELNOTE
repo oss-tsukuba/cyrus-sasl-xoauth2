@@ -1,3 +1,11 @@
+Release note for Cyrus SASL XOAUTH2 IdP 1.0.1
+=============================================
+
+[2024.3.4]
+
+Bug fixes
+* fix unnecessary access to sasldb
+
 Release note for Cyrus SASL XOAUTH2 IdP 1.0.0
 =============================================
 
