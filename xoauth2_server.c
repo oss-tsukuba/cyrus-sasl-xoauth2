@@ -414,26 +414,15 @@ static int xoauth2_plugin_server_mech_step1(
         goto out;
     }
 
-    {
-        const char *requests[] = { SASL_AUX_OAUTH2_BEARER_TOKENS, NULL };
+    err = params->canon_user(utils->conn, resp.authid, 0, SASL_CU_AUTHID | SASL_CU_AUTHZID, oparams);
 
-        err = utils->prop_request(params->propctx, requests);
-        if (err != SASL_OK) {
-            /* not sure if we can return a plain error instead of a challange-impersonated error at this point */
-            SASL_seterror((utils->conn, 0, "failed to retrieve bearer tokens for the user %s", resp.authid));
-            goto out;
-        }
-
-        err = params->canon_user(utils->conn, resp.authid, 0, SASL_CU_AUTHID | SASL_CU_AUTHZID, oparams);
-
-        if (err == SASL_OK) {
-            err = introspect_token(context->settings, params, resp.authid, resp.token, oparams);
-            if (err == SASL_OK) {
-                token_is_valid = 1;
-            }
-        } else {
-            SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, failed to canonify user and get auxprops for user %s", resp.authid));
-        }
+    if (err == SASL_OK) {
+	err = introspect_token(context->settings, params, resp.authid, resp.token, oparams);
+	if (err == SASL_OK) {
+	    token_is_valid = 1;
+	}
+    } else {
+	SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, failed to canonify user and get auxprops for user %s", resp.authid));
     }
 
     if (!token_is_valid) {

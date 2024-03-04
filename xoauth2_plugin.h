@@ -101,8 +101,6 @@ int xoauth2_client_plug_init(
 #define SASL_base64_encode(in, in_len, out, out_max_len, out_len) (utils->encode64(in, in_len, out, out_max_len, out_len))
 #define SASL_base64_decode(in, in_len, out, out_max_len, out_len) (utils->decode64(in, in_len, out, out_max_len, out_len))
 
-#define SASL_AUX_OAUTH2_BEARER_TOKENS "oauth2BearerTokens"
-
 #ifdef WIN32
 #define SASLPLUGINAPI __declspec(dllexport)
 #else
