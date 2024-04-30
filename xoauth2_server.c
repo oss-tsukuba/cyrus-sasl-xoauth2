@@ -559,12 +559,14 @@ static int xoauth2_server_plug_get_options(const sasl_utils_t *utils, xoauth2_pl
     }
 
     memset(settings->issuers, 0, sizeof(settings->issuers));
+    issuers = NULL;
+    issuers_len = 0;
     err = utils->getopt(
             utils->getopt_context,
             "XOAUTH2",
             "xoauth2_issuers",
             &issuers, &issuers_len);
-    if (err != SASL_OK || !settings->user_claim) {
+    if (err != SASL_OK || issuers == NULL) {
         SASL_log((utils->conn, SASL_LOG_NOTE, "xoauth2_plugin, xoauth2_issuers is not set"));
     } else {
       char *iss;
