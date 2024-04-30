@@ -574,7 +574,12 @@ static int xoauth2_server_plug_get_options(const sasl_utils_t *utils, xoauth2_pl
 
       iss = strtok((char *)issuers, DEMILITER);
       while (iss != NULL) {
-	settings->issuers[num++] = strdup(iss);
+	if (num >= MAX_ISSUERS - 1) {
+	    /* MAX_ISSUERS - 1: settings->issuers[num] should be NULL */
+	    SASL_log((utils->conn, SASL_LOG_WARN, "xoauth2_plugin, number of issuers exceeds %d", MAX_ISSUERS - 1));
+	} else {
+	    settings->issuers[num++] = strdup(iss);
+	}
 	iss = strtok(NULL, DEMILITER);
       }
     }
