@@ -320,7 +320,7 @@ static int xoauth2_plugin_server_mech_step1(
         p = resp.buf, e = resp.buf + resp.buf_size;
 
         if (e - p < 5 || strncasecmp(p, "user=", 5) != 0) {
-            SASL_seterror((utils->conn, 0, "Failed to parse authentication information"));
+            SASL_seterror((utils->conn, 0, "Failed to parse authentication information user: <%s>", resp.buf));
             err = SASL_BADPROT;
             goto out;
         }
@@ -329,7 +329,7 @@ static int xoauth2_plugin_server_mech_step1(
         resp.authid = p;
         for (;;) {
             if (p >= e) {
-                SASL_seterror((utils->conn, 0, "Failed to parse authentication information"));
+                SASL_seterror((utils->conn, 0, "Failed to parse authentication information authid: <%s>", resp.buf));
                 err = SASL_BADPROT;
                 goto out;
             }
@@ -343,7 +343,7 @@ static int xoauth2_plugin_server_mech_step1(
         ++p;
 
         if (e - p < 5 || strncasecmp(p, "auth=", 5) != 0) {
-            SASL_seterror((utils->conn, 0, "Failed to parse authentication information"));
+            SASL_seterror((utils->conn, 0, "Failed to parse authentication information auth: <%s>", resp.buf));
             err = SASL_BADPROT;
             goto out;
         }
@@ -353,7 +353,7 @@ static int xoauth2_plugin_server_mech_step1(
         resp.token_type = p;
         for (;;) {
             if (p >= e) {
-                SASL_seterror((utils->conn, 0, "Failed to parse authentication information"));
+                SASL_seterror((utils->conn, 0, "Failed to parse authentication information token_type/1: <%s>", resp.buf));
                 err = SASL_BADPROT;
                 goto out;
             }
@@ -366,12 +366,12 @@ static int xoauth2_plugin_server_mech_step1(
         token_e = p;
 
         if (*++p != '\001') {
-            SASL_seterror((utils->conn, 0, "Failed to parse authentication information"));
+            SASL_seterror((utils->conn, 0, "Failed to parse authentication information token_type/2: <%s>", resp.buf));
             err = SASL_BADPROT;
             goto out;
         }
         if (p + 1 != e) {
-            SASL_seterror((utils->conn, 0, "Failed to parse authentication information"));
+            SASL_seterror((utils->conn, 0, "Failed to parse authentication information token_type/3: <%s>", resp.buf));
             err = SASL_BADPROT;
             goto out;
         }
@@ -379,7 +379,7 @@ static int xoauth2_plugin_server_mech_step1(
         p = resp.token_type;
         for (;;) {
             if (p >= token_e) {
-                SASL_seterror((utils->conn, 0, "Failed to parse authentication information"));
+                SASL_seterror((utils->conn, 0, "Failed to parse authentication information token_type/4: <%s>", resp.buf));
                 err = SASL_BADPROT;
                 goto out;
             }
@@ -394,7 +394,7 @@ static int xoauth2_plugin_server_mech_step1(
 
         for (;;) {
             if (p >= token_e) {
-                SASL_seterror((utils->conn, 0, "Failed to parse authentication information"));
+                SASL_seterror((utils->conn, 0, "Failed to parse authentication information token_type/5: <%s>", resp.buf));
                 err = SASL_BADPROT;
                 goto out;
             }
