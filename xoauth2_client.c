@@ -397,6 +397,9 @@ static int xoauth2_plugin_client_mech_step1(
     *clientout = NULL;
     *clientout_len = 0;
 
+    resp.authid = NULL;
+    resp.authid_len = 0;
+
     SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauth2_plugin, xoauth2: step1"));
 
     if (!context) {
@@ -476,6 +479,12 @@ static int xoauth2_plugin_client_mech_step1(
 	    SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, get claim failed:%s", user_claim));
 	  }
         }
+
+	if (resp.authid == NULL) {
+	    SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, authid is not set"));
+	    err = SASL_FAIL;
+	    goto out;
+	}
 
         err = params->canon_user(
                 utils->conn, resp.authid, resp.authid_len,
