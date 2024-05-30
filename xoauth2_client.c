@@ -329,8 +329,10 @@ static int load_config(const sasl_utils_t *utils)
         }
 
         len = path_len + 2 + strlen(service_name) + 5 + 1;
+	/* XXX - shut out the warning of gcc-13.2: output may be truncated */
+	len += 2;
 
-        if (len > PATH_MAX ) {
+        if (len > PATH_MAX) {
             result = SASL_FAIL;
             goto done;
         }
