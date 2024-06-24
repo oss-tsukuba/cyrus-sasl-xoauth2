@@ -477,17 +477,17 @@ static int xoauth2_plugin_client_mech_step1(
         }
 
         if (get_from_jwt) {
-	  char user_claim[settings->user_claim_len + 1];
+	    char user_claim[settings->user_claim_len + 1];
 
-	  strncpy(user_claim, settings->user_claim, settings->user_claim_len);
-	  user_claim[settings->user_claim_len] = 0;
+	    strncpy(user_claim, settings->user_claim, settings->user_claim_len);
+	    user_claim[settings->user_claim_len] = 0;
 
-	  if (jwt_get_claim_string(resp.token, user_claim, &username) > 0) {
-	    resp.authid = username;
-	    resp.authid_len = strlen(username);
-	  } else {
-	    SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, get claim failed:%s", user_claim));
-	  }
+	    if (jwt_get_claim_string(resp.token, user_claim, &username) > 0) {
+	      resp.authid = username;
+	      resp.authid_len = strlen(username);
+	    } else {
+	      SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, get claim failed:%s", user_claim));
+	    }
         }
 
 	if (resp.authid == NULL) {
