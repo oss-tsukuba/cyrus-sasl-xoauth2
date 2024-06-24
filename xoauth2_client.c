@@ -63,10 +63,12 @@
 #endif
 
 #include <pthread.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <unistd.h>
 #include <sasl/saslutil.h>
 
 #include "xoauth2_plugin.h"
@@ -356,6 +358,12 @@ static int load_config(const sasl_utils_t *utils)
         }
 
         if (config_filename) {
+	    if (access(config_filename, R_OK) != 0 && errno != ENOENT) {
+		SASL_log((utils->conn, SASL_LOG_WARN,
+			"xoauth2_plugin: cannot read config file %s: %s",
+			config_filename, strerror(errno)));
+	    }
+
             free(config_filename);
             config_filename = NULL;
         }
