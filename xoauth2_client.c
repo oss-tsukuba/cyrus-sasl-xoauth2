@@ -301,6 +301,13 @@ static int get_cb_value(const sasl_utils_t *utils, unsigned id, const char **res
 }
 
 
+/**
+ * @fn load_config(const sasl_utils_t *utils)
+ * @brief load client-side configuration file
+ * @return SASL_OK: success
+ * @return SASL_FAIL: failure
+ * @return SASL_CONTINUE: there is no configuration file
+ */
 static int load_config(const sasl_utils_t *utils)
 {
     int result;
