@@ -485,7 +485,7 @@ static int xoauth2_plugin_client_mech_step1(
 		    resp.authid = username;
 		    resp.authid_len = strlen(username);
 		} else {
-		    SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, get claim failed:%s", user_claim));
+		    SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin: failed to get username claim \"%s\" from JWT", user_claim));
 		}
 	    }
         }
