@@ -148,7 +148,7 @@ static int xoauth2_client_plug_get_options(const sasl_utils_t *utils,
             "xoauth2_user_claim",
             &settings->user_claim, &settings->user_claim_len);
     if (err != SASL_OK || !settings->user_claim) {
-        SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, xoauth2_user_claim is not set"));
+        SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin: xoauth2_user_claim is not set"));
         settings->user_claim = "";
         settings->user_claim_len = 0;
     }
@@ -167,7 +167,7 @@ static int xoauth2_plugin_client_mech_new(
 
     context = SASL_malloc(sizeof(*context));
     if (!context) {
-        SASL_seterror((utils->conn, 0, "xoauth2_plugin, Failed to allocate memory"));
+        SASL_seterror((utils->conn, 0, "xoauth2_plugin: Failed to allocate memory"));
         return SASL_NOMEM;
     }
 
@@ -417,7 +417,7 @@ static int xoauth2_plugin_client_mech_step1(
     resp.authid = NULL;
     resp.authid_len = 0;
 
-    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauth2_plugin, xoauth2: step1"));
+    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauth2_plugin: xoauth2: step1"));
 
     if (!context) {
         return SASL_BADPROT;
@@ -491,7 +491,7 @@ static int xoauth2_plugin_client_mech_step1(
         }
 
 	if (resp.authid == NULL) {
-	    SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, authid is not set"));
+	    SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin: authid is not set"));
 	    err = SASL_FAIL;
 	    goto out;
 	}
@@ -517,7 +517,7 @@ static int xoauth2_plugin_client_mech_step1(
         sasl_interact_t *p;
         prompt_returned = SASL_malloc(sizeof(sasl_interact_t) * prompts);
         if (!prompt_returned) {
-            SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin, failed to allocate buffer"));
+            SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin: failed to allocate buffer"));
             err = SASL_NOMEM;
             goto out;
         }
@@ -574,7 +574,7 @@ static int xoauth2_plugin_client_mech_step2(
     *clientout = NULL;
     *clientout_len = 0;
 
-    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauth2_plugin, xoauth2: step2"));
+    SASL_log((utils->conn, SASL_LOG_DEBUG, "xoauth2_plugin: xoauth2: step2"));
 
     if (!context) {
         return SASL_BADPROT;
