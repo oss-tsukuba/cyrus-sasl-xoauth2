@@ -54,14 +54,14 @@ static int introspect_token(
     int err = SASL_FAIL;
 
     if(scitoken_deserialize(token, &scitoken, (const char * const*)settings->issuers, &err_msg)) {
-      SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin: introspect_token \n %s", err_msg));
+      SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin: introspect_token: %s", err_msg));
       free(err_msg);
       return err;
     }
 
     char *issuer_ptr = NULL;
     if(scitoken_get_claim_string(scitoken, "iss", &issuer_ptr, &err_msg)) {
-      SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin: introspect_token, Failed to get issuer claim \n %s", err_msg));
+      SASL_log((utils->conn, SASL_LOG_ERR, "xoauth2_plugin: introspect_token, Failed to get issuer claim: %s", err_msg));
       free(err_msg);
       scitoken_destroy(scitoken);
       return 0;
