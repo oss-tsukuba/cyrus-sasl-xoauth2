@@ -1,9 +1,21 @@
+Release note for Cyrus SASL XOAUTH2 IdP 1.0.2
+=============================================
+
+[2024.12.16]
+
+Updated feature
+* better error handling
+
+Bug fix
+* fix segfault when JWT is invalid
+
+
 Release note for Cyrus SASL XOAUTH2 IdP 1.0.1
 =============================================
 
 [2024.3.4]
 
-Bug fixes
+Bug fix
 * fix unnecessary access to sasldb
 
 Release note for Cyrus SASL XOAUTH2 IdP 1.0.0
